@@ -1,0 +1,75 @@
+# --- Базовые настройки игры ---
+TILE_SIZE = 64          
+MAP_WIDTH = 60          # БОЛЬШАЯ карта (было 20)
+MAP_HEIGHT = 60         # БОЛЬШАЯ карта (было 15)
+
+# Фиксированный размер окна (меньше карты, чтобы был скроллинг)
+SCREEN_WIDTH = 1024
+SCREEN_HEIGHT = 768     # Включает 60 пикселей под интерфейс внизу
+
+SCREEN_TITLE = "Герои Меча и Магии: Бесконечное Королевство"
+
+# --- Типы ландшафта ---
+TERRAIN_GRASS = 0
+TERRAIN_MOUNTAIN = 1  
+TERRAIN_WATER = 2     
+TERRAIN_FOREST = 3    
+
+# --- Цвета ---
+COLOR_GRASS = (34, 139, 34)
+COLOR_GRASS_DETAIL = (20, 100, 20)
+COLOR_MOUNTAIN = (105, 105, 105)
+COLOR_MOUNTAIN_PEAK = (240, 240, 240)
+COLOR_WATER = (30, 144, 255)
+COLOR_WATER_WAVE = (135, 206, 250)
+COLOR_FOREST = (0, 100, 0)
+COLOR_GRID = (0, 0, 0, 30)
+COLOR_GOLD = (255, 215, 0)
+COLOR_POTION = (0, 255, 127)
+COLOR_UI_BG = (40, 40, 40)
+
+# --- Параметры героя ---
+HERO_START_GOLD = 150
+HERO_START_HP = 120
+HERO_ATTACK = 12
+HERO_DEFENSE = 6
+
+# --- Параметры врагов (6 типов с шансами спавна) ---
+ENEMY_WOLF_HP = 25; ENEMY_WOLF_ATTACK = 12; ENEMY_WOLF_DEFENSE = 0; ENEMY_WOLF_CHANCE = 0.25
+ENEMY_GOBLIN_HP = 35; ENEMY_GOBLIN_ATTACK = 8; ENEMY_GOBLIN_DEFENSE = 2; ENEMY_GOBLIN_CHANCE = 0.25
+ENEMY_SKELETON_HP = 50; ENEMY_SKELETON_ATTACK = 14; ENEMY_SKELETON_DEFENSE = 3; ENEMY_SKELETON_CHANCE = 0.20
+ENEMY_LICH_HP = 45; ENEMY_LICH_ATTACK = 22; ENEMY_LICH_DEFENSE = 1; ENEMY_LICH_CHANCE = 0.15
+ENEMY_GOLEM_HP = 120; ENEMY_GOLEM_ATTACK = 15; ENEMY_GOLEM_DEFENSE = 8; ENEMY_GOLEM_CHANCE = 0.10
+ENEMY_DRAGON_HP = 200; ENEMY_DRAGON_ATTACK = 25; ENEMY_DRAGON_DEFENSE = 6; ENEMY_DRAGON_CHANCE = 0.05
+
+# --- Параметры ресурсов (увеличены для большой карты) ---
+POTION_COUNT = 15
+POTION_HEAL_AMOUNT = 40
+GOLD_COUNT = 30
+GOLD_PER_PILE = 60
+
+GOLD_SPAWN_PER_WEEK = 5     
+POTION_SPAWN_PER_WEEK = 3   
+ENEMIES_SPAWN_PER_WEEK = 4  
+
+# --- Опыт и уровни ---
+XP_PER_KILL = 60
+XP_TO_LEVEL_UP = 120
+LEVEL_UP_HP_BONUS = 25
+LEVEL_UP_STAT_BONUS = 3
+
+# --- Поведение врагов и сложность ---
+ENEMY_AGGRO_RANGE = 1  
+ENEMY_SCALING_PER_WEEK = 0.15  
+
+# --- Система времени ---
+TURNS_PER_DAY = 7           
+DAYS_PER_WEEK = 7           
+TURNS_PER_WEEK = 49         
+WEEKS_TO_WIN = 10           
+
+# --- Стоимость улучшений ---
+UPGRADE_ATTACK_COST = 120
+UPGRADE_DEFENSE_COST = 120
+UPGRADE_HP_COST = 180
+UPGRADE_AMOUNT = 5
