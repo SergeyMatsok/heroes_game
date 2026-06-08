@@ -1,4 +1,5 @@
 import arcade
+import os
 from settings import (
     TILE_SIZE, HERO_START_GOLD, HERO_START_HP,
     HERO_ATTACK, HERO_DEFENSE,
@@ -19,6 +20,14 @@ class Hero:
         self.level = 1
         self.xp = 0
         self.xp_to_next_level = XP_TO_LEVEL_UP
+        # Загрузка текстуры героя
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        image_path = os.path.join(script_dir, "images", "hero.png")
+        try:
+            self.texture = arcade.load_texture(image_path)
+        except FileNotFoundError:
+            print(f"⚠️  Файл hero.png не найден! Использую эмодзи.")
+            self.texture = None
     
     def draw(self, screen_x, screen_y):
         # Полоска здоровья
@@ -30,29 +39,34 @@ class Hero:
         arcade.draw_lbwh_rectangle_filled(bar_x, bar_y, TILE_SIZE, 5, (100, 100, 100))
         if bar_width > 0:
             arcade.draw_lbwh_rectangle_filled(bar_x, bar_y, bar_width, 5, (30, 144, 255))
+        
+        # Рисуем героя (картинку или эмодзи)
+        if self.texture:
+            # Масштабируем картинку под размер клетки
+            scale = TILE_SIZE / max(self.texture.width, self.texture.height)
+            center_x = screen_x + TILE_SIZE // 2
+            center_y = screen_y + TILE_SIZE // 2
             
-        # Тень для героя
-        arcade.draw_text(
-            "🤴",
-            screen_x + TILE_SIZE // 2 + 2,
-            screen_y + TILE_SIZE // 2 - 2,
-            (0, 0, 0, 120),
-            44,
-            anchor_x="center",
-            anchor_y="center",
-            font_name="Segoe UI Emoji"
-        )
-        # Герой
-        arcade.draw_text(
-            "🤴",
-            screen_x + TILE_SIZE // 2,
-            screen_y + TILE_SIZE // 2,
-            arcade.color.WHITE,
-            44,
-            anchor_x="center",
-            anchor_y="center",
-            font_name="Segoe UI Emoji"
-        )
+            # Создаём прямоугольник через arcade.XYWH (Arcade 3.x)
+            rect = arcade.XYWH(
+                center_x,
+                center_y,
+                self.texture.width * scale,
+                self.texture.height * scale
+            )
+            arcade.draw_texture_rect(self.texture, rect)
+        else:
+            # Рисуем эмодзи если картинка не найдена
+            arcade.draw_text(
+                "🤴",
+                screen_x + TILE_SIZE // 2,
+                screen_y + TILE_SIZE // 2,
+                arcade.color.WHITE,
+                44,
+                anchor_x="center",
+                anchor_y="center",
+                font_name="Segoe UI Emoji"
+            )
         
         # Уровень
         arcade.draw_text(

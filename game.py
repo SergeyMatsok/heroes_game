@@ -1,22 +1,29 @@
-import arcade
 import random
 
-from settings import (
-    TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE,
-    TERRAIN_GRASS, TERRAIN_MOUNTAIN, TERRAIN_WATER, TERRAIN_FOREST,
-    COLOR_GRASS, COLOR_GRASS_DETAIL, COLOR_MOUNTAIN, COLOR_MOUNTAIN_PEAK,
-    COLOR_WATER, COLOR_WATER_WAVE, COLOR_FOREST, COLOR_GRID, COLOR_GOLD, COLOR_UI_BG,
-    GOLD_PER_PILE, 
-    UPGRADE_ATTACK_COST, UPGRADE_DEFENSE_COST, UPGRADE_HP_COST, UPGRADE_AMOUNT,
-    XP_PER_KILL, ENEMY_AGGRO_RANGE, TURNS_PER_DAY, TURNS_PER_WEEK, WEEKS_TO_WIN, 
-    ENEMIES_SPAWN_PER_WEEK, GOLD_SPAWN_PER_WEEK, POTION_SPAWN_PER_WEEK,
-    ENEMY_WOLF_CHANCE, ENEMY_GOBLIN_CHANCE, ENEMY_SKELETON_CHANCE, 
-    ENEMY_LICH_CHANCE, ENEMY_GOLEM_CHANCE, ENEMY_DRAGON_CHANCE
-)
-from map_generator import generate_map, generate_gold_positions, generate_potion_positions
-from hero import Hero
+import arcade
+
 from enemy import Enemy
+from hero import Hero
+from map_generator import (generate_gold_positions, generate_map,
+                           generate_potion_positions)
 from potion import Potion
+from settings import (COLOR_FOREST, COLOR_GOLD, COLOR_GRASS,
+                      COLOR_GRASS_DETAIL, COLOR_GRID, COLOR_MOUNTAIN,
+                      COLOR_MOUNTAIN_PEAK, COLOR_UI_BG, COLOR_WATER,
+                      COLOR_WATER_WAVE, ENEMIES_SPAWN_PER_WEEK,
+                      ENEMY_AGGRO_RANGE, ENEMY_DRAGON_CHANCE,
+                      ENEMY_DRAGON_COUNT, ENEMY_GOBLIN_CHANCE,
+                      ENEMY_GOBLIN_COUNT, ENEMY_GOLEM_CHANCE,
+                      ENEMY_GOLEM_COUNT, ENEMY_LICH_CHANCE, ENEMY_LICH_COUNT,
+                      ENEMY_SKELETON_CHANCE, ENEMY_SKELETON_COUNT,
+                      ENEMY_WOLF_CHANCE, ENEMY_WOLF_COUNT, GOLD_PER_PILE,
+                      GOLD_SPAWN_PER_WEEK, MAP_HEIGHT, MAP_WIDTH,
+                      POTION_SPAWN_PER_WEEK, SCREEN_HEIGHT, SCREEN_TITLE,
+                      SCREEN_WIDTH, TERRAIN_FOREST, TERRAIN_GRASS,
+                      TERRAIN_MOUNTAIN, TERRAIN_WATER, TILE_SIZE,
+                      TURNS_PER_DAY, TURNS_PER_WEEK, UPGRADE_AMOUNT,
+                      UPGRADE_ATTACK_COST, UPGRADE_DEFENSE_COST,
+                      UPGRADE_HP_COST, WEEKS_TO_WIN, XP_PER_KILL)
 
 # Размеры областей
 CONSOLE_WIDTH = 350
@@ -175,12 +182,12 @@ class HeroesGame(arcade.Window):
                         not any(e.x == x and e.y == y for e in enemies)):
                         enemies.append(Enemy(x, y, enemy_type, spawn_week=1))
                         break
-        add_enemy("wolf", 3)
-        add_enemy("goblin", 5)
-        add_enemy("skeleton", 3)
-        add_enemy("lich", 2)
-        add_enemy("golem", 2)
-        add_enemy("dragon", 1)
+        add_enemy("wolf", ENEMY_WOLF_COUNT)
+        add_enemy("goblin", ENEMY_GOBLIN_COUNT)
+        add_enemy("skeleton", ENEMY_SKELETON_COUNT)
+        add_enemy("lich", ENEMY_LICH_COUNT)
+        add_enemy("golem", ENEMY_GOLEM_COUNT)
+        add_enemy("dragon", ENEMY_DRAGON_COUNT)
         return enemies
     
     def update_enemies(self):
@@ -243,7 +250,7 @@ class HeroesGame(arcade.Window):
         console_bg_x = CONSOLE_WIDTH / 2
         console_bg_y = UI_HEIGHT + (GAME_HEIGHT / 2)
         arcade.draw_lbwh_rectangle_filled(console_bg_x, console_bg_y, CONSOLE_WIDTH, GAME_HEIGHT, (15, 15, 20))
-        arcade.draw_lbwh_rectangle_outline(console_bg_x, console_bg_y, CONSOLE_WIDTH, GAME_HEIGHT, (80, 80, 80), 2)
+        # arcade.draw_lbwh_rectangle_outline(console_bg_x, console_bg_y, CONSOLE_WIDTH, GAME_HEIGHT, (80, 80, 80), 2)
         
         arcade.draw_text("📜 ЖУРНАЛ СОБЫТИЙ", 15, self.height - 40, arcade.color.GOLD, 14, font_name="Arial", bold=True)
         arcade.draw_line(10, self.height - 55, CONSOLE_WIDTH - 15, self.height - 55, (100, 100, 100), 1)
@@ -344,6 +351,14 @@ class HeroesGame(arcade.Window):
         hero_screen_y = UI_HEIGHT + self.hero.y * TILE_SIZE - self.camera_y
         self.hero.draw(hero_screen_x, hero_screen_y)
         
+
+        # 4. УВЕДОМЛЕНИЕ О ПОВЫШЕНИИ УРОВНЯ
+        if self.level_up_timer > 0:
+            arcade.draw_text(f"🎉Уровень повышен! Теперь вы {self.hero.level} уровня!", ui_center_x, self.height / 2 + 50, arcade.color.GOLD, 32, anchor_x="center", font_name="Arial", bold=True)
+            self.level_up_timer -= 1
+
+
+
         # Сообщения о конце игры (поверх всего)
         if self.game_over:
             if self.victory:
