@@ -71,9 +71,9 @@ ENEMY_AGGRO_RANGE = 1
 ENEMY_SCALING_PER_WEEK = 0.15  
 
 # --- Система времени ---
-TURNS_PER_DAY = 7           
+TURNS_PER_DAY = 10           
 DAYS_PER_WEEK = 7           
-TURNS_PER_WEEK = 49         
+TURNS_PER_WEEK = 70         
 WEEKS_TO_WIN = 10           
 
 # --- Стоимость улучшений ---

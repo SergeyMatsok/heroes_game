@@ -6,6 +6,7 @@ from enemy import Enemy
 from hero import Hero
 from map_generator import (generate_gold_positions, generate_map,
                            generate_potion_positions)
+from quest import Quest, generate_weekly_quests, QUEST_KILL_ENEMIES, QUEST_COLLECT_GOLD, QUEST_COLLECT_POTIONS, QUEST_EXPLORE_TILES
 from potion import Potion
 from settings import (COLOR_FOREST, COLOR_GOLD, COLOR_GRASS,
                       COLOR_GRASS_DETAIL, COLOR_GRID, COLOR_MOUNTAIN,
@@ -26,19 +27,27 @@ from settings import (COLOR_FOREST, COLOR_GOLD, COLOR_GRASS,
                       UPGRADE_HP_COST, WEEKS_TO_WIN, XP_PER_KILL)
 
 # Размеры областей
-CONSOLE_WIDTH = 350
+CONSOLE_WIDTH = 250       # Узкая консоль
 UI_HEIGHT = 80
-GAME_WIDTH = SCREEN_WIDTH   # Область игры
-GAME_HEIGHT = SCREEN_HEIGHT
+GAME_WIDTH = SCREEN_WIDTH - CONSOLE_WIDTH   # Оставшееся место
+GAME_HEIGHT = SCREEN_HEIGHT - UI_HEIGHT     # Оставшееся место
 
 class HeroesGame(arcade.Window):
     def __init__(self):
-        # Окно: консоль слева + игра справа, UI снизу
-        total_width = CONSOLE_WIDTH + GAME_WIDTH
-        total_height = GAME_HEIGHT + UI_HEIGHT
-        super().__init__(total_width, total_height, SCREEN_TITLE)
+        super().__init__(1280, 800, SCREEN_TITLE, resizable=True)
+        self.set_fullscreen(True)
         
-        # Камера = просто смещение (без arcade.Camera!)
+        # ВАЖНО: принудительно пересчитываем размеры после полноэкранного режима
+        # set_fullscreen может не сразу обновить self.width/height
+        import time
+        time.sleep(0.1)  # Даём время системе применить полноэкранный режим
+        
+        self.game_width = self.width - CONSOLE_WIDTH
+        self.game_height = self.height - UI_HEIGHT
+        
+        print(f"🖥️ Размер окна: {self.width}x{self.height}")
+        print(f"🎮 Игровая зона: {self.game_width}x{self.game_height}")
+        
         self.camera_x = 0
         self.camera_y = 0
         
@@ -46,8 +55,23 @@ class HeroesGame(arcade.Window):
         self.max_messages = 8
         
         self.reset_game()
+        self.quests = []
+        self.completed_quests = []
+        self.tiles_explored = 0
+        self.total_gold_collected = 0
+        self.total_potions_collected = 0
+        self.enemies_killed_by_type = {}
         arcade.set_background_color((10, 10, 15))
-    
+
+
+    def on_resize(self, width, height):
+        super().on_resize(width, height)
+        self.game_width = width - CONSOLE_WIDTH
+        self.game_height = height - UI_HEIGHT
+        print(f"🔄 Resize: {width}x{height}, game: {self.game_width}x{self.game_height}")
+        self.update_camera()
+
+
     def log_message(self, text):
         self.messages.append(text)
         if len(self.messages) > self.max_messages:
@@ -70,35 +94,47 @@ class HeroesGame(arcade.Window):
         self.level_up_timer = 0
         self.turns = 0
         self.messages = []
+
+
+        self.quests = []
+        self.completed_quests = []
+        self.tiles_explored = 0
+        self.total_gold_collected = 0
+        self.total_potions_collected = 0
+        self.enemies_killed_by_type = {}
         
         self.fog = [[0 for _ in range(MAP_WIDTH)] for _ in range(MAP_HEIGHT)]
         self.update_fog()
         self.update_camera()
         self.log_message("🏰 Добро пожаловать в Бесконечное Королевство!")
     
+
     def update_camera(self):
-        """Смещаем камеру так, чтобы герой был в центре игровой области"""
+        """Смещаем камеру так, чтобы герой был в центре, но не выходил за границы"""
+        # Размер карты в пикселях
+        map_pixel_width = MAP_WIDTH * TILE_SIZE
+        map_pixel_height = MAP_HEIGHT * TILE_SIZE
+        
         # Позиция героя в мировых координатах
         hero_world_x = self.hero.x * TILE_SIZE + TILE_SIZE // 2
         hero_world_y = self.hero.y * TILE_SIZE + TILE_SIZE // 2
         
-        # Центр игровой области
-        center_x = GAME_WIDTH / 2
-        center_y = GAME_HEIGHT / 2
+        # Идеальная позиция камеры (герой в центре)
+        ideal_camera_x = hero_world_x - self.game_width / 2
+        ideal_camera_y = hero_world_y - self.game_height / 2
         
-        # Смещение камеры
-        self.camera_x = hero_world_x - center_x
-        self.camera_y = hero_world_y - center_y
-        
-        # Ограничения (не выходить за границы карты)
+        # ⚠️ ГЛАВНОЕ ИЗМЕНЕНИЕ: добавляем TILE_SIZE к max_x и max_y
+        # Это даёт камере запас, чтобы герой на краю карты был полностью виден
         min_x = 0
-        max_x = MAP_WIDTH * TILE_SIZE - GAME_WIDTH
+        max_x = max(0, map_pixel_width - self.game_width + TILE_SIZE)
         min_y = 0
-        max_y = MAP_HEIGHT * TILE_SIZE - GAME_HEIGHT
+        max_y = max(0, map_pixel_height - self.game_height + TILE_SIZE)
         
-        self.camera_x = max(min_x, min(self.camera_x, max_x))
-        self.camera_y = max(min_y, min(self.camera_y, max_y))
-    
+        # Применяем ограничения
+        self.camera_x = max(min_x, min(ideal_camera_x, max_x))
+        self.camera_y = max(min_y, min(ideal_camera_y, max_y))
+
+
     def advance_turn(self):
         self.turns += 1
         if self.turns > 0 and self.turns % TURNS_PER_WEEK == 0:
@@ -111,6 +147,15 @@ class HeroesGame(arcade.Window):
         current_week = (self.turns // TURNS_PER_WEEK) + 1
         self.log_message(f" Неделя {current_week}: Появились новые ресурсы и враги!")
         
+        # Генерируем новые квесты
+        new_quests = generate_weekly_quests(current_week, self.hero.level)
+        self.quests.extend(new_quests)
+        
+        # Уведомляем о новых квестах
+        for quest in new_quests:
+            self.log_message(f"📜 Новый квест: {quest.get_description()} | Награда: {quest.get_reward_text()}")
+        
+
         for enemy in self.enemies:
             enemy.spawn_week = current_week
             enemy.update_stats()
@@ -242,75 +287,25 @@ class HeroesGame(arcade.Window):
     
     def on_draw(self):
         self.clear()
+        # Отладка (можно убрать потом)
         
-        # ==========================================
-        # ЗОНА 1: КОНСОЛЬ (слева, фиксированная)
-        # Координаты: x от 0 до CONSOLE_WIDTH, y от UI_HEIGHT до height
-        # ==========================================
-        console_bg_x = CONSOLE_WIDTH / 2
-        console_bg_y = UI_HEIGHT + (GAME_HEIGHT / 2)
-        arcade.draw_lbwh_rectangle_filled(console_bg_x, console_bg_y, CONSOLE_WIDTH, GAME_HEIGHT, (15, 15, 20))
-        # arcade.draw_lbwh_rectangle_outline(console_bg_x, console_bg_y, CONSOLE_WIDTH, GAME_HEIGHT, (80, 80, 80), 2)
+        self.ctx.viewport = (CONSOLE_WIDTH, UI_HEIGHT, self.game_width, self.game_height)
         
-        arcade.draw_text("📜 ЖУРНАЛ СОБЫТИЙ", 15, self.height - 40, arcade.color.GOLD, 14, font_name="Arial", bold=True)
-        arcade.draw_line(10, self.height - 55, CONSOLE_WIDTH - 15, self.height - 55, (100, 100, 100), 1)
-        
-        y_offset = self.height - 80
-        for i, msg in enumerate(reversed(self.messages)):
-            display_msg = msg[:45] + ("..." if len(msg) > 45 else "")
-            arcade.draw_text(display_msg, 15, y_offset - (i * 20), arcade.color.LIGHT_GRAY, 12, font_name="Arial")
-        
-        # ==========================================
-        # ЗОНА 2: НИЖНЯЯ ПАНЕЛЬ (снизу, фиксированная)
-        # Координаты: x от CONSOLE_WIDTH до width, y от 0 до UI_HEIGHT
-        # ==========================================
-        ui_center_x = CONSOLE_WIDTH + GAME_WIDTH / 2
-        ui_center_y = UI_HEIGHT / 2
-        arcade.draw_lbwh_rectangle_filled(ui_center_x, ui_center_y, GAME_WIDTH, UI_HEIGHT, COLOR_UI_BG)
-        arcade.draw_line(CONSOLE_WIDTH, UI_HEIGHT, self.width, UI_HEIGHT, (80, 80, 80), 2)
-        
-        current_day = (self.turns // TURNS_PER_DAY) + 1
-        current_week = (self.turns // TURNS_PER_WEEK) + 1
-        
-        if not self.shop_mode:
-            arcade.draw_text(f"📅 Неделя: {current_week}, День: {current_day} | Ход: {self.turns}", 
-                             CONSOLE_WIDTH + 15, 50, arcade.color.WHITE, 13, font_name="Arial", bold=True)
-            arcade.draw_text(f"Ур: {self.hero.level} | 💰: {self.hero.gold} | ❤️: {self.hero.hp}/{self.hero.max_hp}", 
-                             ui_center_x, 30, arcade.color.WHITE, 13, font_name="Arial", anchor_x="center")
-            arcade.draw_text(f"⚔️: {self.hero.attack} | ️: {self.hero.defense} | : {len(self.enemies)} | [M] Магазин", 
-                             self.width - 380, 30, arcade.color.LIGHT_GRAY, 12, font_name="Arial")
-        else:
-            arcade.draw_text(f"🏰 МАГАЗИН | 💰: {self.hero.gold}", ui_center_x, 50, arcade.color.GOLD, 14, font_name="Arial", bold=True, anchor_x="center")
-            arcade.draw_text(f"[1] Атака +{UPGRADE_AMOUNT} ({UPGRADE_ATTACK_COST}g) | [2] Защита +{UPGRADE_AMOUNT} ({UPGRADE_DEFENSE_COST}g) | [3] HP +{UPGRADE_AMOUNT*2} ({UPGRADE_HP_COST}g) | [ESC] Закрыть", 
-                             ui_center_x, 30, arcade.color.LIGHT_GRAY, 12, font_name="Arial", anchor_x="center")
-        
-        # ==========================================
-        # ЗОНА 3: ИГРА (справа сверху, со смещением камеры)
-        # Координаты: x от CONSOLE_WIDTH до width, y от UI_HEIGHT до height
-        # Всё рисуется со смещением (self.camera_x, self.camera_y)
-        # ==========================================
-        
-        # Обрезаем область рисования игры (чтобы не вылезало за границы)
-        # Рисуем рамку игровой области
-        game_area_x = CONSOLE_WIDTH + GAME_WIDTH / 2
-        game_area_y = UI_HEIGHT + GAME_HEIGHT / 2
-        arcade.draw_lbwh_rectangle_outline(game_area_x, game_area_y, GAME_WIDTH, GAME_HEIGHT, (60, 60, 60), 2)
         
         for y in range(MAP_HEIGHT):
             for x in range(MAP_WIDTH):
-                # Мировые координаты клетки
                 world_x = x * TILE_SIZE
                 world_y = y * TILE_SIZE
                 
-                # Экраные координаты (со смещением камеры + смещение зоны игры)
-                screen_x = CONSOLE_WIDTH + world_x - self.camera_x
-                screen_y = UI_HEIGHT + world_y - self.camera_y
+                # Координаты на экране (относительно viewport)
+                screen_x = world_x - self.camera_x
+                screen_y = world_y - self.camera_y
                 
                 # Пропускаем если вне видимой области
-                if screen_x < CONSOLE_WIDTH - TILE_SIZE or screen_x > self.width + TILE_SIZE:
+                if screen_x < -TILE_SIZE or screen_x > self.game_width + TILE_SIZE:
                     continue
-                if screen_y < UI_HEIGHT - TILE_SIZE or screen_y > self.height + TILE_SIZE:
-                    continue
+                if screen_y < -TILE_SIZE or screen_y > self.game_height + TILE_SIZE:
+                    continue       
                 
                 fog_state = self.fog[y][x]
                 
@@ -329,37 +324,85 @@ class HeroesGame(arcade.Window):
         
         for gold_x, gold_y in self.gold_positions:
             if self.fog[gold_y][gold_x] == 2:
-                screen_x = CONSOLE_WIDTH + gold_x * TILE_SIZE - self.camera_x
-                screen_y = UI_HEIGHT + gold_y * TILE_SIZE - self.camera_y
-                arcade.draw_text("💰", screen_x + TILE_SIZE//2 + 2, screen_y + TILE_SIZE//2 - 2, (0,0,0,100), 28, anchor_x="center", anchor_y="center")
+                screen_x = gold_x * TILE_SIZE - self.camera_x
+                screen_y = gold_y * TILE_SIZE - self.camera_y
+                arcade.draw_text("", screen_x + TILE_SIZE//2 + 2, screen_y + TILE_SIZE//2 - 2, (0,0,0,100), 28, anchor_x="center", anchor_y="center")
                 arcade.draw_text("💰", screen_x + TILE_SIZE//2, screen_y + TILE_SIZE//2, arcade.color.WHITE, 28, anchor_x="center", anchor_y="center")
         
         for potion in self.potions:
             if self.fog[potion.y][potion.x] == 2:
-                screen_x = CONSOLE_WIDTH + potion.x * TILE_SIZE - self.camera_x
-                screen_y = UI_HEIGHT + potion.y * TILE_SIZE - self.camera_y
-                arcade.draw_text("", screen_x + TILE_SIZE//2 + 2, screen_y + TILE_SIZE//2 - 2, (0,0,0,100), 32, anchor_x="center", anchor_y="center")
+                screen_x = potion.x * TILE_SIZE - self.camera_x
+                screen_y = potion.y * TILE_SIZE - self.camera_y
+                arcade.draw_text("🧪", screen_x + TILE_SIZE//2 + 2, screen_y + TILE_SIZE//2 - 2, (0,0,0,100), 32, anchor_x="center", anchor_y="center")
                 arcade.draw_text("🧪", screen_x + TILE_SIZE//2, screen_y + TILE_SIZE//2, arcade.color.WHITE, 32, anchor_x="center", anchor_y="center")
         
         for enemy in self.enemies:
             if self.fog[enemy.y][enemy.x] == 2:
-                screen_x = CONSOLE_WIDTH + enemy.x * TILE_SIZE - self.camera_x
-                screen_y = UI_HEIGHT + enemy.y * TILE_SIZE - self.camera_y
+                screen_x = enemy.x * TILE_SIZE - self.camera_x
+                screen_y = enemy.y * TILE_SIZE - self.camera_y
                 enemy.draw(screen_x, screen_y)
         
-        hero_screen_x = CONSOLE_WIDTH + self.hero.x * TILE_SIZE - self.camera_x
-        hero_screen_y = UI_HEIGHT + self.hero.y * TILE_SIZE - self.camera_y
+        hero_screen_x = self.hero.x * TILE_SIZE - self.camera_x
+        hero_screen_y = self.hero.y * TILE_SIZE - self.camera_y
         self.hero.draw(hero_screen_x, hero_screen_y)
         
-
-        # 4. УВЕДОМЛЕНИЕ О ПОВЫШЕНИИ УРОВНЯ
+        
+        
+        # ==========================================
+        # 2. СБРАСЫВАЕМ viewport и рисуем UI ПОВЕРХ
+        # ==========================================
+        self.ctx.viewport = (0, 0, self.width, self.height)
+        
+        # Консоль слева (используем self.game_height вместо GAME_HEIGHT)
+        console_bg_x = CONSOLE_WIDTH / 2
+        console_bg_y = UI_HEIGHT + (self.game_height / 2)
+        # arcade.draw_lbwh_rectangle_filled(console_bg_x, console_bg_y, CONSOLE_WIDTH, self.game_height, (15, 15, 20))
+        
+        arcade.draw_text(" ЖУРНАЛ СОБЫТИЙ", 15, self.height - 40, arcade.color.GOLD, 14, font_name="Arial", bold=True)
+        arcade.draw_line(10, self.height - 55, CONSOLE_WIDTH - 15, self.height - 55, (100, 100, 100), 1)
+        
+        y_offset = self.height - 80
+        for i, msg in enumerate(reversed(self.messages)):
+            display_msg = msg[:45] + ("..." if len(msg) > 45 else "")
+            arcade.draw_text(display_msg, 15, y_offset - (i * 20), arcade.color.LIGHT_GRAY, 12, font_name="Arial")
+        
+        # Нижняя панель
+        ui_center_x = CONSOLE_WIDTH + self.game_width / 2
+        ui_center_y = UI_HEIGHT / 2
+        
+        
+        current_day = (self.turns // TURNS_PER_DAY) + 1
+        current_week = (self.turns // TURNS_PER_WEEK) + 1
+        
+        if not self.shop_mode:
+            arcade.draw_text(f"📅 Неделя: {current_week}, День: {current_day} | Ход: {self.turns}", 
+                             CONSOLE_WIDTH + 15, 50, arcade.color.WHITE, 13, font_name="Arial", bold=True)
+            arcade.draw_text(f"Ур: {self.hero.level} | 💰: {self.hero.gold} | ❤️: {self.hero.hp}/{self.hero.max_hp}", 
+                             ui_center_x, 30, arcade.color.WHITE, 13, font_name="Arial", anchor_x="center")
+            arcade.draw_text(f"⚔️: {self.hero.attack} | ️: {self.hero.defense} | : {len(self.enemies)} | [M] Магазин", 
+                             self.width - 380, 30, arcade.color.LIGHT_GRAY, 12, font_name="Arial")
+        else:
+            arcade.draw_text(f"🏰 МАГАЗИН | 💰: {self.hero.gold}", ui_center_x, 50, arcade.color.GOLD, 14, font_name="Arial", bold=True, anchor_x="center")
+            arcade.draw_text(f"[1] Атака +{UPGRADE_AMOUNT} ({UPGRADE_ATTACK_COST}g) | [2] Защита +{UPGRADE_AMOUNT} ({UPGRADE_DEFENSE_COST}g) | [3] HP +{UPGRADE_AMOUNT*2} ({UPGRADE_HP_COST}g) | [ESC] Закрыть", 
+                             ui_center_x, 30, arcade.color.LIGHT_GRAY, 12, font_name="Arial", anchor_x="center")
+        
+        # Уведомление о повышении уровня
         if self.level_up_timer > 0:
-            arcade.draw_text(f"🎉Уровень повышен! Теперь вы {self.hero.level} уровня!", ui_center_x, self.height / 2 + 50, arcade.color.GOLD, 32, anchor_x="center", font_name="Arial", bold=True)
+            arcade.draw_text(f"🎉 Уровень повышен! Теперь вы {self.hero.level} уровня!", ui_center_x, self.height / 2 + 50, arcade.color.GOLD, 32, anchor_x="center", font_name="Arial", bold=True)
             self.level_up_timer -= 1
-
-
-
-        # Сообщения о конце игры (поверх всего)
+        
+        # Квесты
+        if self.quests:
+            arcade.draw_line(10, 180, CONSOLE_WIDTH - 15, 180, (100, 100, 100), 1)
+            arcade.draw_text("📋 АКТИВНЫЕ КВЕСТЫ:", 15, 165, arcade.color.GOLD, 12, font_name="Arial", bold=True)
+            
+            y_quest = 145
+            for i, quest in enumerate(self.quests[:3]):
+                arcade.draw_text(quest.get_description(), 15, y_quest, arcade.color.LIGHT_GRAY, 10, font_name="Arial")
+                arcade.draw_text(quest.get_progress_text(), CONSOLE_WIDTH - 60, y_quest, arcade.color.YELLOW, 10, font_name="Arial", anchor_x="right")
+                y_quest -= 25
+        
+        # Сообщения о конце игры
         if self.game_over:
             if self.victory:
                 msg = f"🏆 ПОБЕДА! Вы успешно правили {WEEKS_TO_WIN} недель!"
@@ -369,7 +412,7 @@ class HeroesGame(arcade.Window):
                 color = arcade.color.RED
             arcade.draw_text(msg, ui_center_x, self.height / 2, color, 28, anchor_x="center", font_name="Arial", bold=True)
             arcade.draw_text("Нажмите R для новой игры", ui_center_x, self.height / 2 - 40, arcade.color.WHITE, 18, anchor_x="center", font_name="Arial")
-    
+
     def on_key_press(self, key, modifiers):
         if self.game_over and key == arcade.key.R:
             self.reset_game()
@@ -380,13 +423,17 @@ class HeroesGame(arcade.Window):
             if key == arcade.key.ESCAPE: 
                 self.shop_mode = False
             elif key == arcade.key.KEY_1 and self.hero.upgrade_attack(): 
-                self.log_message(f"️ Атака улучшена! Теперь: {self.hero.attack}")
+                self.log_message(f"⚔️ Атака улучшена! Теперь: {self.hero.attack}")
             elif key == arcade.key.KEY_2 and self.hero.upgrade_defense(): 
                 self.log_message(f"🛡️ Защита улучшена! Теперь: {self.hero.defense}")
             elif key == arcade.key.KEY_3 and self.hero.upgrade_hp(): 
                 self.log_message(f"❤️ Здоровье улучшено! Теперь: {self.hero.max_hp}")
             return
         
+        if key == arcade.key.F11:
+            self.set_fullscreen(not self.fullscreen)
+            return
+
         if key == arcade.key.M:
             self.shop_mode = True
             return
@@ -396,6 +443,9 @@ class HeroesGame(arcade.Window):
         elif key in (arcade.key.S, arcade.key.DOWN) and self.hero.y > 0: new_y -= 1
         elif key in (arcade.key.A, arcade.key.LEFT) and self.hero.x > 0: new_x -= 1
         elif key in (arcade.key.D, arcade.key.RIGHT) and self.hero.x < MAP_WIDTH - 1: new_x += 1
+
+        new_x = max(0, min(new_x, MAP_WIDTH - 1))
+        new_y = max(0, min(new_y, MAP_HEIGHT - 1))
         
         action_taken = False
         
@@ -408,17 +458,29 @@ class HeroesGame(arcade.Window):
                 self.hero.x = new_x
                 self.hero.y = new_y
                 action_taken = True
+                
+                # Сбор золота (ТОЛЬКО здесь, после движения)
                 if (self.hero.x, self.hero.y) in self.gold_positions:
                     self.gold_positions.remove((self.hero.x, self.hero.y))
                     self.hero.gold += GOLD_PER_PILE
                     self.log_message("💰 Вы нашли золото!")
+                    # ОБНОВЛЕНИЕ КВЕСТА:
+                    self.update_quest_progress("gold", amount=GOLD_PER_PILE)
+                
+                # Сбор зелий (ТОЛЬКО здесь, после движения)
                 potion_on_cell = next((p for p in self.potions if p.x == self.hero.x and p.y == self.hero.y), None)
                 if potion_on_cell:
                     self.hero.heal(potion_on_cell.heal_amount)
                     self.potions.remove(potion_on_cell)
                     self.log_message(f"🧪 Вы выпили зелье! HP: {self.hero.hp}/{self.hero.max_hp}")
+                    # ОБНОВЛЕНИЕ КВЕСТА:
+                    self.update_quest_progress("potion")
         
         if action_taken:
+            # Отслеживаем исследование новых клеток
+            if self.fog[self.hero.y][self.hero.x] == 2:
+                self.update_quest_progress("move")
+            
             self.advance_turn()
             self.update_fog()
             self.update_enemies()
@@ -434,9 +496,60 @@ class HeroesGame(arcade.Window):
         else:
             self.enemies.remove(enemy)
             self.log_message(f"🏆 Вы победили {enemy.emoji} и получили {XP_PER_KILL} XP!")
+            
+            # Отслеживаем убитых врагов по типам
+            if enemy.type not in self.enemies_killed_by_type:
+                self.enemies_killed_by_type[enemy.type] = 0
+            self.enemies_killed_by_type[enemy.type] += 1
+            
+            # Обновляем квесты
+            self.update_quest_progress("kill", enemy_type=enemy.type)
+            
             if self.hero.gain_xp(XP_PER_KILL):
                 self.level_up_timer = 120
                 self.log_message(f"🎉 Уровень повышен! Теперь вы {self.hero.level} уровня!")
             self.update_fog()
             self.update_enemies()
             self.update_camera()
+
+
+
+    def update_quest_progress(self, event_type, **kwargs):
+        """Обновляет прогресс квестов"""
+        for quest in self.quests:
+            if quest.completed:
+                continue
+            
+            completed_now = False
+            
+            if quest.type == QUEST_KILL_ENEMIES and event_type == "kill":
+                enemy_type = kwargs.get("enemy_type")
+                if enemy_type == quest.target:
+                    completed_now = quest.add_progress()
+            
+            elif quest.type == QUEST_COLLECT_GOLD and event_type == "gold":
+                amount = kwargs.get("amount", 0)
+                # Добавляем к текущему прогрессу квеста
+                completed_now = quest.add_progress(amount)
+            
+            elif quest.type == QUEST_COLLECT_POTIONS and event_type == "potion":
+                completed_now = quest.add_progress()
+            
+            elif quest.type == QUEST_EXPLORE_TILES and event_type == "move":
+                completed_now = quest.add_progress()
+            
+            if completed_now:
+                self.log_message(f"✅ Квест выполнен: {quest.get_description()}")
+                self.log_message(f"🎁 Награда: {quest.get_reward_text()}")
+                
+                # Выдаём награду
+                self.hero.gold += quest.reward_gold
+                if quest.reward_xp > 0:
+                    if self.hero.gain_xp(quest.reward_xp):
+                        self.level_up_timer = 120
+                        self.log_message(f"🎉 Уровень повышен! Теперь вы {self.hero.level} уровня!")
+                
+                self.completed_quests.append(quest)
+        
+        # Удаляем выполненные квесты из активных
+        self.quests = [q for q in self.quests if not q.completed]
