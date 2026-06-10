@@ -8,6 +8,14 @@ from settings import (
     ENEMY_LICH_HP, ENEMY_LICH_ATTACK, ENEMY_LICH_DEFENSE,
     ENEMY_GOLEM_HP, ENEMY_GOLEM_ATTACK, ENEMY_GOLEM_DEFENSE,
     ENEMY_DRAGON_HP, ENEMY_DRAGON_ATTACK, ENEMY_DRAGON_DEFENSE,
+    ENEMY_ORC_HP, ENEMY_ORC_ATTACK, ENEMY_ORC_DEFENSE,
+    ENEMY_TROLL_HP, ENEMY_TROLL_ATTACK, ENEMY_TROLL_DEFENSE,
+    ENEMY_VAMPIRE_HP, ENEMY_VAMPIRE_ATTACK, ENEMY_VAMPIRE_DEFENSE,
+    ENEMY_DEMON_HP, ENEMY_DEMON_ATTACK, ENEMY_DEMON_DEFENSE,
+    ENEMY_BANDIT_HP, ENEMY_BANDIT_ATTACK, ENEMY_BANDIT_DEFENSE,
+    ENEMY_DARK_ELF_HP, ENEMY_DARK_ELF_ATTACK, ENEMY_DARK_ELF_DEFENSE,
+    ENEMY_GIANT_HP, ENEMY_GIANT_ATTACK, ENEMY_GIANT_DEFENSE,
+    ENEMY_PHOENIX_HP, ENEMY_PHOENIX_ATTACK, ENEMY_PHOENIX_DEFENSE,
     ENEMY_SCALING_PER_WEEK
 )
 
@@ -18,7 +26,15 @@ ENEMY_EMOJIS = {
     "skeleton": "💀",
     "lich": "🧙",
     "golem": "🗿",
-    "dragon": "🐉"
+    "dragon": "🐉",
+    "orc": "👹",
+    "troll": "🧌",
+    "vampire": "🧛",
+    "demon": "😈",
+    "bandit": "🥷",
+    "dark_elf": "🧝",
+    "giant": "🧟",
+    "phoenix": "🦅"
 }
 
 # Кэш текстур (чтобы не загружать одну и ту же картинку много раз)
@@ -53,38 +69,72 @@ class Enemy:
         # Загружаем текстуру
         self.texture = load_enemy_texture(enemy_type)
         
-        # Базовые характеристики
-        if enemy_type == "dragon":
-            self.base_hp = ENEMY_DRAGON_HP
-            self.base_attack = ENEMY_DRAGON_ATTACK
-            self.base_defense = ENEMY_DRAGON_DEFENSE
-            self.emoji = ENEMY_EMOJIS["dragon"]
-        elif enemy_type == "golem":
-            self.base_hp = ENEMY_GOLEM_HP
-            self.base_attack = ENEMY_GOLEM_ATTACK
-            self.base_defense = ENEMY_GOLEM_DEFENSE
-            self.emoji = ENEMY_EMOJIS["golem"]
-        elif enemy_type == "lich":
-            self.base_hp = ENEMY_LICH_HP
-            self.base_attack = ENEMY_LICH_ATTACK
-            self.base_defense = ENEMY_LICH_DEFENSE
-            self.emoji = ENEMY_EMOJIS["lich"]
+        # Базовые характеристики в зависимости от типа врага
+        if enemy_type == "wolf":
+            self.base_hp = ENEMY_WOLF_HP
+            self.base_attack = ENEMY_WOLF_ATTACK
+            self.base_defense = ENEMY_WOLF_DEFENSE
+        elif enemy_type == "goblin":
+            self.base_hp = ENEMY_GOBLIN_HP
+            self.base_attack = ENEMY_GOBLIN_ATTACK
+            self.base_defense = ENEMY_GOBLIN_DEFENSE
         elif enemy_type == "skeleton":
             self.base_hp = ENEMY_SKELETON_HP
             self.base_attack = ENEMY_SKELETON_ATTACK
             self.base_defense = ENEMY_SKELETON_DEFENSE
-            self.emoji = ENEMY_EMOJIS["skeleton"]
-        elif enemy_type == "wolf":
-            self.base_hp = ENEMY_WOLF_HP
-            self.base_attack = ENEMY_WOLF_ATTACK
-            self.base_defense = ENEMY_WOLF_DEFENSE
-            self.emoji = ENEMY_EMOJIS["wolf"]
-        else:  # goblin
+        elif enemy_type == "lich":
+            self.base_hp = ENEMY_LICH_HP
+            self.base_attack = ENEMY_LICH_ATTACK
+            self.base_defense = ENEMY_LICH_DEFENSE
+        elif enemy_type == "golem":
+            self.base_hp = ENEMY_GOLEM_HP
+            self.base_attack = ENEMY_GOLEM_ATTACK
+            self.base_defense = ENEMY_GOLEM_DEFENSE
+        elif enemy_type == "dragon":
+            self.base_hp = ENEMY_DRAGON_HP
+            self.base_attack = ENEMY_DRAGON_ATTACK
+            self.base_defense = ENEMY_DRAGON_DEFENSE
+        elif enemy_type == "orc":
+            self.base_hp = ENEMY_ORC_HP
+            self.base_attack = ENEMY_ORC_ATTACK
+            self.base_defense = ENEMY_ORC_DEFENSE
+        elif enemy_type == "troll":
+            self.base_hp = ENEMY_TROLL_HP
+            self.base_attack = ENEMY_TROLL_ATTACK
+            self.base_defense = ENEMY_TROLL_DEFENSE
+        elif enemy_type == "vampire":
+            self.base_hp = ENEMY_VAMPIRE_HP
+            self.base_attack = ENEMY_VAMPIRE_ATTACK
+            self.base_defense = ENEMY_VAMPIRE_DEFENSE
+        elif enemy_type == "demon":
+            self.base_hp = ENEMY_DEMON_HP
+            self.base_attack = ENEMY_DEMON_ATTACK
+            self.base_defense = ENEMY_DEMON_DEFENSE
+        elif enemy_type == "bandit":
+            self.base_hp = ENEMY_BANDIT_HP
+            self.base_attack = ENEMY_BANDIT_ATTACK
+            self.base_defense = ENEMY_BANDIT_DEFENSE
+        elif enemy_type == "dark_elf":
+            self.base_hp = ENEMY_DARK_ELF_HP
+            self.base_attack = ENEMY_DARK_ELF_ATTACK
+            self.base_defense = ENEMY_DARK_ELF_DEFENSE
+        elif enemy_type == "giant":
+            self.base_hp = ENEMY_GIANT_HP
+            self.base_attack = ENEMY_GIANT_ATTACK
+            self.base_defense = ENEMY_GIANT_DEFENSE
+        elif enemy_type == "phoenix":
+            self.base_hp = ENEMY_PHOENIX_HP
+            self.base_attack = ENEMY_PHOENIX_ATTACK
+            self.base_defense = ENEMY_PHOENIX_DEFENSE
+        else:
+            # По умолчанию — гоблин
             self.base_hp = ENEMY_GOBLIN_HP
             self.base_attack = ENEMY_GOBLIN_ATTACK
             self.base_defense = ENEMY_GOBLIN_DEFENSE
-            self.emoji = ENEMY_EMOJIS["goblin"]
-            
+        
+        # Эмодзи для отрисовки
+        self.emoji = ENEMY_EMOJIS.get(enemy_type, "❓")
+        
         self.update_stats()
 
     def update_stats(self):
@@ -129,14 +179,6 @@ class Enemy:
                 self.texture.height * scale
             )
             arcade.draw_texture_rect(self.texture, rect)
-            
-            # Если враг в агрессии — рисуем красную рамку вокруг
-            # if self.is_aggroed:
-            #     arcade.draw_lbwh_rectangle_outline(
-            #         center_x, center_y,
-            #         TILE_SIZE + 4, TILE_SIZE + 4,
-            #         (255, 0, 0), 2
-            #     )
         else:
             # Fallback на эмодзи
             shadow_color = (255, 0, 0, 150) if self.is_aggroed else (0, 0, 0, 100)
@@ -161,6 +203,53 @@ class Enemy:
                 anchor_y="center",
                 font_name="Segoe UI Emoji"
             )
+        
+        # 🔥 УРОВЕНЬ ВРАГА (в правом нижнем углу)
+        enemy_level = self.spawn_week
+        arcade.draw_text(
+            f"Lv.{enemy_level}",
+            screen_x + TILE_SIZE - 4,
+            screen_y + 4,
+            (255, 255, 0),  # Жёлтый цвет
+            12,
+            anchor_x="right",
+            anchor_y="bottom",
+            font_name="Arial",
+            bold=True
+        )
+        
+        # Название типа врага (сверху)
+        enemy_names = {
+            "wolf": "Волк",
+            "goblin": "Гоблин",
+            "skeleton": "Скелет",
+            "lich": "Лич",
+            "golem": "Голем",
+            "dragon": "Дракон",
+            "orc": "Орк",
+            "troll": "Тролль",
+            "vampire": "Вампир",
+            "demon": "Демон",
+            "bandit": "Бандит",
+            "dark_elf": "Тёмный эльф",
+            "giant": "Великан",
+            "phoenix": "Феникс"
+        }
+        name = enemy_names.get(self.type, self.type)
+        if self.title:
+            name += self.title
+        
+        arcade.draw_text(
+            name,
+            screen_x + TILE_SIZE // 2,
+            screen_y + TILE_SIZE + 15,
+            (255, 200, 100),  # Оранжевый
+            10,
+            anchor_x="center",
+            anchor_y="top",
+            font_name="Arial",
+            bold=True
+        )
     
     def take_damage(self, damage):
         actual_damage = max(1, damage - self.defense)

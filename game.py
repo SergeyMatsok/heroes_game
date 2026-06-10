@@ -1,7 +1,7 @@
 import random
 
 import arcade
-
+from combat_animation import CombatAnimator
 from enemy import Enemy
 from hero import Hero
 from map_generator import (generate_gold_positions, generate_map,
@@ -61,6 +61,8 @@ class HeroesGame(arcade.Window):
         self.total_gold_collected = 0
         self.total_potions_collected = 0
         self.enemies_killed_by_type = {}
+        self.combat_animator = CombatAnimator()
+        self.combat_state = None  # None или {'phase': 'hero_attack', 'timer': 0, ...}
         arcade.set_background_color((10, 10, 15))
 
 
@@ -199,10 +201,26 @@ class HeroesGame(arcade.Window):
                         self.enemies.append(Enemy(x, y, "lich", current_week))
                     elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE:
                         self.enemies.append(Enemy(x, y, "golem", current_week))
-                    else:
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE:
                         self.enemies.append(Enemy(x, y, "dragon", current_week))
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15:  # orc
+                        self.enemies.append(Enemy(x, y, "orc", current_week))
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08:  # troll
+                        self.enemies.append(Enemy(x, y, "troll", current_week))
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07:  # vampire
+                        self.enemies.append(Enemy(x, y, "vampire", current_week))
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05:  # demon
+                        self.enemies.append(Enemy(x, y, "demon", current_week))
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05 + 0.12:  # bandit
+                        self.enemies.append(Enemy(x, y, "bandit", current_week))
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05 + 0.12 + 0.06:  # dark_elf
+                        self.enemies.append(Enemy(x, y, "dark_elf", current_week))
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05 + 0.12 + 0.06 + 0.04:  # giant
+                        self.enemies.append(Enemy(x, y, "giant", current_week))
+                    else:
+                        self.enemies.append(Enemy(x, y, "phoenix", current_week))
                     break
-    
+
     def update_fog(self):
         FOG_RADIUS = 2
         for y in range(MAP_HEIGHT):
@@ -233,6 +251,15 @@ class HeroesGame(arcade.Window):
         add_enemy("lich", ENEMY_LICH_COUNT)
         add_enemy("golem", ENEMY_GOLEM_COUNT)
         add_enemy("dragon", ENEMY_DRAGON_COUNT)
+        # Новые враги (появляются со 2-3 недели)
+        add_enemy("orc", 4)
+        add_enemy("troll", 2)
+        add_enemy("vampire", 2)
+        add_enemy("demon", 1)
+        add_enemy("bandit", 3)
+        add_enemy("dark_elf", 2)
+        add_enemy("giant", 1)
+        add_enemy("phoenix", 1)
         return enemies
     
     def update_enemies(self):
@@ -345,7 +372,7 @@ class HeroesGame(arcade.Window):
         hero_screen_x = self.hero.x * TILE_SIZE - self.camera_x
         hero_screen_y = self.hero.y * TILE_SIZE - self.camera_y
         self.hero.draw(hero_screen_x, hero_screen_y)
-        
+        self.combat_animator.draw()
         
         
         # ==========================================
@@ -486,32 +513,108 @@ class HeroesGame(arcade.Window):
             self.update_enemies()
             self.update_camera()
     
+    # def combat(self, enemy):
+    #     damage_to_enemy = enemy.take_damage(self.hero.attack)
+    #     if enemy.is_alive():
+    #         self.hero.take_damage(enemy.attack)
+    #         if not self.hero.is_alive():
+    #             self.game_over = True
+    #             self.victory = False
+    #     else:
+    #         self.enemies.remove(enemy)
+    #         self.log_message(f"🏆 Вы победили {enemy.emoji} и получили {XP_PER_KILL} XP!")
+            
+    #         # Отслеживаем убитых врагов по типам
+    #         if enemy.type not in self.enemies_killed_by_type:
+    #             self.enemies_killed_by_type[enemy.type] = 0
+    #         self.enemies_killed_by_type[enemy.type] += 1
+            
+    #         # Обновляем квесты
+    #         self.update_quest_progress("kill", enemy_type=enemy.type)
+            
+    #         if self.hero.gain_xp(XP_PER_KILL):
+    #             self.level_up_timer = 120
+    #             self.log_message(f"🎉 Уровень повышен! Теперь вы {self.hero.level} уровня!")
+    #         self.update_fog()
+    #         self.update_enemies()
+    #         self.update_camera()
     def combat(self, enemy):
+        """Начать анимированный бой"""
+        # Позиции ОТНОСИТЕЛЬНО viewport (без CONSOLE_WIDTH и UI_HEIGHT!)
+        hero_screen_x = self.hero.x * TILE_SIZE - self.camera_x
+        hero_screen_y = self.hero.y * TILE_SIZE - self.camera_y
+        enemy_screen_x = enemy.x * TILE_SIZE - self.camera_x
+        enemy_screen_y = enemy.y * TILE_SIZE - self.camera_y
+        
+        # --- Анимация атаки героя ---
+        self.combat_animator.add_shake(intensity=8, duration=15)
+        
         damage_to_enemy = enemy.take_damage(self.hero.attack)
-        if enemy.is_alive():
-            self.hero.take_damage(enemy.attack)
-            if not self.hero.is_alive():
-                self.game_over = True
-                self.victory = False
-        else:
+        
+        # Вспышка на враге (правильные координаты)
+        self.combat_animator.add_flash(
+            enemy_screen_x + TILE_SIZE // 2,
+            enemy_screen_y + TILE_SIZE // 2,
+            radius=50
+        )
+        
+        # Летящее число урона
+        self.combat_animator.add_damage(
+            enemy_screen_x + TILE_SIZE // 2,
+            enemy_screen_y + TILE_SIZE + 20,
+            damage_to_enemy
+        )
+        
+        if not enemy.is_alive():
             self.enemies.remove(enemy)
             self.log_message(f"🏆 Вы победили {enemy.emoji} и получили {XP_PER_KILL} XP!")
             
-            # Отслеживаем убитых врагов по типам
             if enemy.type not in self.enemies_killed_by_type:
                 self.enemies_killed_by_type[enemy.type] = 0
             self.enemies_killed_by_type[enemy.type] += 1
             
-            # Обновляем квесты
             self.update_quest_progress("kill", enemy_type=enemy.type)
             
             if self.hero.gain_xp(XP_PER_KILL):
                 self.level_up_timer = 120
                 self.log_message(f"🎉 Уровень повышен! Теперь вы {self.hero.level} уровня!")
-            self.update_fog()
-            self.update_enemies()
-            self.update_camera()
-
+            
+            self.combat_animator.add_flash(
+                enemy_screen_x + TILE_SIZE // 2,
+                enemy_screen_y + TILE_SIZE // 2,
+                radius=80
+            )
+        else:
+            damage_to_hero = self.hero.take_damage(enemy.attack)
+            
+            self.combat_animator.add_shake(intensity=12, duration=20)
+            
+            self.combat_animator.add_flash(
+                hero_screen_x + TILE_SIZE // 2,
+                hero_screen_y + TILE_SIZE // 2,
+                radius=50
+            )
+            
+            self.combat_animator.add_damage(
+                hero_screen_x + TILE_SIZE // 2,
+                hero_screen_y + TILE_SIZE + 20,
+                damage_to_hero
+            )
+            
+            self.log_message(f"️ {enemy.emoji} атакует вас! Урон: {damage_to_hero}")
+            
+            if not self.hero.is_alive():
+                self.game_over = True
+                self.victory = False
+                self.combat_animator.add_flash(
+                    hero_screen_x + TILE_SIZE // 2,
+                    hero_screen_y + TILE_SIZE // 2,
+                    radius=100
+                )
+        
+        self.update_fog()
+        self.update_enemies()
+        self.update_camera()
 
 
     def update_quest_progress(self, event_type, **kwargs):
@@ -553,3 +656,9 @@ class HeroesGame(arcade.Window):
         
         # Удаляем выполненные квесты из активных
         self.quests = [q for q in self.quests if not q.completed]
+
+
+
+    def on_update(self, delta_time):
+        """Обновление анимаций каждый кадр"""
+        self.combat_animator.update()
