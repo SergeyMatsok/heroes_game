@@ -1,11 +1,13 @@
-import arcade
 import os
-from settings import (
-    TILE_SIZE, HERO_START_GOLD, HERO_START_HP,
-    HERO_ATTACK, HERO_DEFENSE,
-    UPGRADE_ATTACK_COST, UPGRADE_DEFENSE_COST, UPGRADE_HP_COST, UPGRADE_AMOUNT,
-    XP_TO_LEVEL_UP, LEVEL_UP_HP_BONUS, LEVEL_UP_STAT_BONUS
-)
+
+import arcade
+
+from items import RARITY_COMMON, Item
+from settings import (HERO_ATTACK, HERO_DEFENSE, HERO_START_GOLD,
+                      HERO_START_HP, LEVEL_UP_HP_BONUS, LEVEL_UP_STAT_BONUS,
+                      TILE_SIZE, UPGRADE_AMOUNT, UPGRADE_ATTACK_COST,
+                      UPGRADE_DEFENSE_COST, UPGRADE_HP_COST, XP_TO_LEVEL_UP)
+
 
 class Hero:
     def __init__(self, x, y):
@@ -20,6 +22,19 @@ class Hero:
         self.level = 1
         self.xp = 0
         self.xp_to_next_level = XP_TO_LEVEL_UP
+                # Инвентарь и экипировка
+        self.inventory = []  # Список предметов
+        self.max_inventory = 20
+        
+        # Слоты экипировки
+        self.equipped_weapon = None
+        self.equipped_armor = None
+        self.equipped_accessory = None
+        
+        # Бонусы от экипировки
+        self.bonus_attack = 0
+        self.bonus_defense = 0
+        self.bonus_hp = 0
         # Загрузка текстуры героя
         script_dir = os.path.dirname(os.path.abspath(__file__))
         image_path = os.path.join(script_dir, "images", "hero.png")
@@ -82,7 +97,10 @@ class Hero:
         )
     
     def take_damage(self, damage):
-        actual_damage = max(1, damage - self.defense)
+        """Расчёт урона с учётом защиты (каждая ед. защиты = 0.6 урона)"""
+        damage_reduction = self.defense * 0.6
+        actual_damage = max(1, damage - damage_reduction)
+        actual_damage = int(actual_damage)
         self.hp -= actual_damage
         return actual_damage
     
@@ -129,3 +147,102 @@ class Hero:
             self.hp += UPGRADE_AMOUNT * 2
             return True
         return False
+    
+
+    def add_to_inventory(self, item):
+        """Добавляет предмет в инвентарь"""
+        if len(self.inventory) >= self.max_inventory:
+            return False, "Инвентарь полон!"
+        
+        self.inventory.append(item)
+        return True, f"Получен предмет: {item.name}"
+    
+    def remove_from_inventory(self, index):
+        """Удаляет предмет из инвентаря по индексу"""
+        if 0 <= index < len(self.inventory):
+            return self.inventory.pop(index)
+        return None
+    
+    def equip_item(self, index):
+        """Экипирует предмет по индексу"""
+        if index < 0 or index >= len(self.inventory):
+            return False, "Неверный индекс"
+        
+        item = self.inventory[index]
+        
+        if item.type == "weapon":
+            # Снимаем текущее оружие
+            if self.equipped_weapon:
+                self.inventory.append(self.equipped_weapon)
+            self.equipped_weapon = item
+        elif item.type == "armor":
+            if self.equipped_armor:
+                self.inventory.append(self.equipped_armor)
+            self.equipped_armor = item
+        elif item.type == "accessory":
+            if self.equipped_accessory:
+                self.inventory.append(self.equipped_accessory)
+            self.equipped_accessory = item
+        else:
+            return False, "Этот предмет нельзя экипировать"
+        
+        # Удаляем из инвентаря
+        self.inventory.pop(index)
+        
+        # Пересчитываем бонусы
+        self.recalculate_bonuses()
+        
+        return True, f"Экипировано: {item.name}"
+    
+    def unequip_item(self, slot):
+        """Снимает предмет из слота"""
+        if slot == "weapon":
+            item = self.equipped_weapon
+            self.equipped_weapon = None
+        elif slot == "armor":
+            item = self.equipped_armor
+            self.equipped_armor = None
+        elif slot == "accessory":
+            item = self.equipped_accessory
+            self.equipped_accessory = None
+        else:
+            return False, "Неверный слот"
+        
+        if item:
+            if len(self.inventory) < self.max_inventory:
+                self.inventory.append(item)
+                self.recalculate_bonuses()
+                return True, f"Снято: {item.name}"
+            else:
+                # Инвентарь полон, предмет выпадает
+                return True, f"Снято: {item.name} (инвентарь полон!)"
+        
+        return False, "Слот пуст"
+    
+    def recalculate_bonuses(self):
+        """Пересчитывает бонусы от экипировки"""
+        self.bonus_attack = 0
+        self.bonus_defense = 0
+        self.bonus_hp = 0
+        
+        for item in [self.equipped_weapon, self.equipped_armor, self.equipped_accessory]:
+            if item:
+                self.bonus_attack += item.attack
+                self.bonus_defense += item.defense
+                self.bonus_hp += item.hp
+        
+        # Обновляем максимальное HP
+        base_max_hp = 120 + (self.level - 1) * 25  # Базовое HP + за уровни
+        self.max_hp = base_max_hp + self.bonus_hp
+        
+        # Если текущее HP больше нового максимума, обрезаем
+        if self.hp > self.max_hp:
+            self.hp = self.max_hp
+    
+    def get_total_attack(self):
+        """Возвращает общую атаку (база + бонусы)"""
+        return self.attack + self.bonus_attack
+    
+    def get_total_defense(self):
+        """Возвращает общую защиту (база + бонусы)"""
+        return self.defense + self.bonus_defense

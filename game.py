@@ -1,13 +1,19 @@
 import random
 
 import arcade
+
 from combat_animation import CombatAnimator
+from controls import draw_controls_panel
 from enemy import Enemy
 from hero import Hero
+from inventory_ui import draw_inventory
 from map_generator import (generate_gold_positions, generate_map,
                            generate_potion_positions)
-from quest import Quest, generate_weekly_quests, QUEST_KILL_ENEMIES, QUEST_COLLECT_GOLD, QUEST_COLLECT_POTIONS, QUEST_EXPLORE_TILES
 from potion import Potion
+from quest import (QUEST_COLLECT_GOLD, QUEST_COLLECT_POTIONS,
+                   QUEST_EXPLORE_TILES, QUEST_KILL_ENEMIES, Quest,
+                   generate_weekly_quests)
+from save_system import load_game, save_game
 from settings import (COLOR_FOREST, COLOR_GOLD, COLOR_GRASS,
                       COLOR_GRASS_DETAIL, COLOR_GRID, COLOR_MOUNTAIN,
                       COLOR_MOUNTAIN_PEAK, COLOR_UI_BG, COLOR_WATER,
@@ -63,6 +69,8 @@ class HeroesGame(arcade.Window):
         self.enemies_killed_by_type = {}
         self.combat_animator = CombatAnimator()
         self.combat_state = None  # None или {'phase': 'hero_attack', 'timer': 0, ...}
+        self.show_controls = False  # Показывать ли подсказки
+        self.show_inventory = False
         arcade.set_background_color((10, 10, 15))
 
 
@@ -104,6 +112,19 @@ class HeroesGame(arcade.Window):
         self.total_gold_collected = 0
         self.total_potions_collected = 0
         self.enemies_killed_by_type = {}
+
+        self.items_on_map = []
+        
+        # Генерируем случайные предметы
+        for _ in range(10):
+            x = random.randint(0, MAP_WIDTH - 1)
+            y = random.randint(0, MAP_HEIGHT - 1)
+            if self.game_map[y][x] in (TERRAIN_GRASS, TERRAIN_FOREST):
+                from items import generate_random_item
+                item = generate_random_item()
+                item.x = x
+                item.y = y
+                self.items_on_map.append(item)
         
         self.fog = [[0 for _ in range(MAP_WIDTH)] for _ in range(MAP_HEIGHT)]
         self.update_fog()
@@ -141,6 +162,9 @@ class HeroesGame(arcade.Window):
         self.turns += 1
         if self.turns > 0 and self.turns % TURNS_PER_WEEK == 0:
             self.spawn_weekly_resources_and_enemies()
+            # Автосохранение каждую неделю
+            save_game(self)
+            self.log_message("💾 Игра автоматически сохранена!")
         if self.turns >= WEEKS_TO_WIN * TURNS_PER_WEEK:
             self.game_over = True
             self.victory = True
@@ -363,6 +387,29 @@ class HeroesGame(arcade.Window):
                 arcade.draw_text("🧪", screen_x + TILE_SIZE//2 + 2, screen_y + TILE_SIZE//2 - 2, (0,0,0,100), 32, anchor_x="center", anchor_y="center")
                 arcade.draw_text("🧪", screen_x + TILE_SIZE//2, screen_y + TILE_SIZE//2, arcade.color.WHITE, 32, anchor_x="center", anchor_y="center")
         
+        # 🎁 ПРЕДМЕТЫ НА КАРТЕ
+        if hasattr(self, 'items_on_map'):
+            for item in self.items_on_map:
+                if self.fog[item.y][item.x] == 2:
+                    screen_x = item.x * TILE_SIZE - self.camera_x
+                    screen_y = item.y * TILE_SIZE - self.camera_y
+                    color = item.get_color()
+                    
+                    # Иконка в зависимости от типа
+                    if item.type == "weapon":
+                        icon = "⚔️"
+                    elif item.type == "armor":
+                        icon = "🛡️"
+                    elif item.type == "accessory":
+                        icon = "💍"
+                    else:
+                        icon = "📦"
+                    
+                    # Тень
+                    arcade.draw_text(icon, screen_x + TILE_SIZE//2 + 2, screen_y + TILE_SIZE//2 - 2, (0,0,0,100), 28, anchor_x="center", anchor_y="center")
+                    # Предмет с цветом редкости
+                    arcade.draw_text(icon, screen_x + TILE_SIZE//2, screen_y + TILE_SIZE//2, color, 28, anchor_x="center", anchor_y="center")
+        
         for enemy in self.enemies:
             if self.fog[enemy.y][enemy.x] == 2:
                 screen_x = enemy.x * TILE_SIZE - self.camera_x
@@ -440,7 +487,25 @@ class HeroesGame(arcade.Window):
             arcade.draw_text(msg, ui_center_x, self.height / 2, color, 28, anchor_x="center", font_name="Arial", bold=True)
             arcade.draw_text("Нажмите R для новой игры", ui_center_x, self.height / 2 - 40, arcade.color.WHITE, 18, anchor_x="center", font_name="Arial")
 
+        # ==========================================
+        # ПОСЛЕДНИЙ БЛОК: Подсказки (если включены)
+        # ==========================================
+        if self.show_controls:
+            draw_controls_panel()
+        
+                # Инвентарь
+        if self.show_inventory:
+            draw_inventory(self)
+
     def on_key_press(self, key, modifiers):
+
+        if key in (arcade.key.F1, arcade.key.H):
+            self.show_controls = not self.show_controls
+            return
+        
+        # Если подсказки открыты — игнорируем другие клавиши (кроме F1/H)
+        if self.show_controls and key not in (arcade.key.F1, arcade.key.H):
+            return
         if self.game_over and key == arcade.key.R:
             self.reset_game()
             return
@@ -465,6 +530,35 @@ class HeroesGame(arcade.Window):
             self.shop_mode = True
             return
         
+                # Сохранение (F5)
+        if key == arcade.key.F5:
+            if save_game(self):
+                self.log_message("💾 Игра сохранена!")
+            return
+        
+        # Загрузка (F9)
+        if key == arcade.key.F9:
+            if load_game(self):
+                self.log_message("📂 Игра загружена!")
+            return
+        
+                # Инвентарь (I)
+        if key == arcade.key.I:
+            self.show_inventory = not self.show_inventory
+            return
+        
+        # Если инвентарь открыт — игнорируем другие клавиши
+        if self.show_inventory:
+            if key == arcade.key.ESCAPE:
+                self.show_inventory = False
+            elif key in range(arcade.key.KEY_1, arcade.key.KEY_0 + 1):
+                # Цифры 1-9 для быстрой экипировки
+                slot = key - arcade.key.KEY_1
+                if slot < len(self.hero.inventory):
+                    success, msg = self.hero.equip_item(slot)
+                    self.log_message(msg)
+            return
+        
         new_x, new_y = self.hero.x, self.hero.y
         if key in (arcade.key.W, arcade.key.UP) and self.hero.y < MAP_HEIGHT - 1: new_y += 1
         elif key in (arcade.key.S, arcade.key.DOWN) and self.hero.y > 0: new_y -= 1
@@ -486,22 +580,30 @@ class HeroesGame(arcade.Window):
                 self.hero.y = new_y
                 action_taken = True
                 
-                # Сбор золота (ТОЛЬКО здесь, после движения)
+                # Сбор золота (ТОЛЬКО после движения)
                 if (self.hero.x, self.hero.y) in self.gold_positions:
                     self.gold_positions.remove((self.hero.x, self.hero.y))
                     self.hero.gold += GOLD_PER_PILE
                     self.log_message("💰 Вы нашли золото!")
-                    # ОБНОВЛЕНИЕ КВЕСТА:
                     self.update_quest_progress("gold", amount=GOLD_PER_PILE)
                 
-                # Сбор зелий (ТОЛЬКО здесь, после движения)
+                # Сбор зелий (ТОЛЬКО после движения)
                 potion_on_cell = next((p for p in self.potions if p.x == self.hero.x and p.y == self.hero.y), None)
                 if potion_on_cell:
                     self.hero.heal(potion_on_cell.heal_amount)
                     self.potions.remove(potion_on_cell)
                     self.log_message(f"🧪 Вы выпили зелье! HP: {self.hero.hp}/{self.hero.max_hp}")
-                    # ОБНОВЛЕНИЕ КВЕСТА:
                     self.update_quest_progress("potion")
+                
+                # 🎁 Сбор предметов (ТОЛЬКО после движения)
+                if hasattr(self, 'items_on_map'):
+                    item_on_cell = next((item for item in self.items_on_map 
+                                        if item.x == self.hero.x and item.y == self.hero.y), None)
+                    if item_on_cell:
+                        success, msg = self.hero.add_to_inventory(item_on_cell)
+                        self.log_message(msg)
+                        if success:
+                            self.items_on_map.remove(item_on_cell)
         
         if action_taken:
             # Отслеживаем исследование новых клеток
@@ -658,7 +760,81 @@ class HeroesGame(arcade.Window):
         self.quests = [q for q in self.quests if not q.completed]
 
 
+    def on_mouse_press(self, x, y, button, modifiers):
+        """Обработка клика мыши"""
+        if not self.show_inventory:
+            return
+        
+        from inventory_ui import SLOT_SIZE, SLOT_PADDING
+        
+        # Координаты панели (должны совпадать с draw_inventory)
+        panel_width = 900
+        panel_height = 600
+        cx = self.width / 2
+        cy = self.height / 2
+        
+        left = cx - panel_width / 2
+        right = cx + panel_width / 2
+        top = cy + panel_height / 2
+        bottom = cy - panel_height / 2
+        
+        # === ПРОВЕРКА КЛИКА ПО ИНВЕНТАРЮ (правая часть) ===
+        right_x = cx + 100
+        inventory_y = top - 100
+        slots_per_row = 5
+        start_x = right_x
+        start_y = inventory_y - 80
+        
+        for i, item in enumerate(self.hero.inventory):
+            row = i // slots_per_row
+            col = i % slots_per_row
+            
+            slot_x = start_x + col * (SLOT_SIZE + SLOT_PADDING)
+            slot_y = start_y - row * (SLOT_SIZE + SLOT_PADDING)
+            
+            # Проверяем попадает ли клик в слот
+            if (slot_x - SLOT_SIZE//2 <= x <= slot_x + SLOT_SIZE//2 and
+                slot_y - SLOT_SIZE//2 <= y <= slot_y + SLOT_SIZE//2):
+                
+                # Экипируем предмет
+                success, msg = self.hero.equip_item(i)
+                self.log_message(msg)
+                return
+        
+        # === ПРОВЕРКА КЛИКА ПО СЛОТАМ ЭКИПИРОВКИ (левая часть) ===
+        left_x = left + 100
+        
+        # Слот оружия
+        slot_y = top - 180
+        if self._check_slot_click(x, y, left_x, slot_y, SLOT_SIZE):
+            if self.hero.equipped_weapon:
+                success, msg = self.hero.unequip_item("weapon")
+                self.log_message(msg)
+            return
+        
+        # Слот брони
+        slot_y -= 130
+        if self._check_slot_click(x, y, left_x, slot_y, SLOT_SIZE):
+            if self.hero.equipped_armor:
+                success, msg = self.hero.unequip_item("armor")
+                self.log_message(msg)
+            return
+        
+        # Слот аксессуара
+        slot_y -= 130
+        if self._check_slot_click(x, y, left_x, slot_y, SLOT_SIZE):
+            if self.hero.equipped_accessory:
+                success, msg = self.hero.unequip_item("accessory")
+                self.log_message(msg)
+            return
+    
+    def _check_slot_click(self, mouse_x, mouse_y, slot_x, slot_y, slot_size):
+        """Проверяет попал ли клик в слот"""
+        return (slot_x - slot_size//2 <= mouse_x <= slot_x + slot_size//2 and
+                slot_y - slot_size//2 <= mouse_y <= slot_y + slot_size//2)
+    
 
+    
     def on_update(self, delta_time):
         """Обновление анимаций каждый кадр"""
         self.combat_animator.update()

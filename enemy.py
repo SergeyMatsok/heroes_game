@@ -252,7 +252,10 @@ class Enemy:
         )
     
     def take_damage(self, damage):
-        actual_damage = max(1, damage - self.defense)
+        """Расчёт урона с учётом защиты"""
+        damage_reduction = self.defense * 0.6
+        actual_damage = max(1, damage - damage_reduction)
+        actual_damage = int(actual_damage)
         self.hp -= actual_damage
         return actual_damage
     
