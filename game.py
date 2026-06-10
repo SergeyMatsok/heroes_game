@@ -30,7 +30,7 @@ from settings import (COLOR_FOREST, COLOR_GOLD, COLOR_GRASS,
                       TERRAIN_MOUNTAIN, TERRAIN_WATER, TILE_SIZE,
                       TURNS_PER_DAY, TURNS_PER_WEEK, UPGRADE_AMOUNT,
                       UPGRADE_ATTACK_COST, UPGRADE_DEFENSE_COST,
-                      UPGRADE_HP_COST, WEEKS_TO_WIN, XP_PER_KILL)
+                      UPGRADE_HP_COST, WEEKS_TO_WIN, XP_PER_KILL, MAX_HP, MAX_DEFENSE, MAX_ATTACK, HERO_START_HP, HERO_DEFENSE, HERO_ATTACK)
 
 # Размеры областей
 CONSOLE_WIDTH = 250       # Узкая консоль
@@ -78,7 +78,7 @@ class HeroesGame(arcade.Window):
         super().on_resize(width, height)
         self.game_width = width - CONSOLE_WIDTH
         self.game_height = height - UI_HEIGHT
-        print(f"🔄 Resize: {width}x{height}, game: {self.game_width}x{self.game_height}")
+        
         self.update_camera()
 
 
@@ -455,10 +455,26 @@ class HeroesGame(arcade.Window):
                              ui_center_x, 30, arcade.color.WHITE, 13, font_name="Arial", anchor_x="center")
             arcade.draw_text(f"⚔️: {self.hero.attack} | ️: {self.hero.defense} | : {len(self.enemies)} | [M] Магазин", 
                              self.width - 380, 30, arcade.color.LIGHT_GRAY, 12, font_name="Arial")
+            
+            # ПОДСКАЗКА О КЛАВИШЕ H
+            arcade.draw_text("[H] Подсказки | [I] Инвентарь", 
+                             self.width - 20, 50, (100, 200, 255), 11, 
+                             font_name="Arial", anchor_x="right")
         else:
             arcade.draw_text(f"🏰 МАГАЗИН | 💰: {self.hero.gold}", ui_center_x, 50, arcade.color.GOLD, 14, font_name="Arial", bold=True, anchor_x="center")
-            arcade.draw_text(f"[1] Атака +{UPGRADE_AMOUNT} ({UPGRADE_ATTACK_COST}g) | [2] Защита +{UPGRADE_AMOUNT} ({UPGRADE_DEFENSE_COST}g) | [3] HP +{UPGRADE_AMOUNT*2} ({UPGRADE_HP_COST}g) | [ESC] Закрыть", 
-                             ui_center_x, 30, arcade.color.LIGHT_GRAY, 12, font_name="Arial", anchor_x="center")
+            
+            # Рассчитываем текущую стоимость
+            attack_cost = int(UPGRADE_ATTACK_COST * (1.5 ** (self.hero.attack - HERO_ATTACK)))
+            defense_cost = int(UPGRADE_DEFENSE_COST * (1.5 ** (self.hero.defense - HERO_DEFENSE)))
+            hp_cost = int(UPGRADE_HP_COST * (1.5 ** ((self.hero.max_hp - HERO_START_HP) // (UPGRADE_AMOUNT * 2))))
+            
+            # Проверяем лимиты
+            attack_text = f"[1] Атака +{UPGRADE_AMOUNT} ({attack_cost}g)" if self.hero.attack < MAX_ATTACK else "[1] МАКС"
+            defense_text = f"[2] Защита +{UPGRADE_AMOUNT} ({defense_cost}g)" if self.hero.defense < MAX_DEFENSE else "[2] МАКС"
+            hp_text = f"[3] HP +{UPGRADE_AMOUNT*2} ({hp_cost}g)" if self.hero.max_hp < MAX_HP else "[3] МАКС"
+            
+            arcade.draw_text(f"{attack_text} | {defense_text} | {hp_text} | [ESC] Закрыть", 
+                             ui_center_x, 30, arcade.color.LIGHT_GRAY, 11, font_name="Arial", anchor_x="center")
         
         # Уведомление о повышении уровня
         if self.level_up_timer > 0:

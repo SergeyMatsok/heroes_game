@@ -182,9 +182,10 @@ def draw_equipment_slot(x, y, item, item_type, slot_name):
             (90, 90, 110), 24,
             anchor_x="center", anchor_y="center"
         )
+        # Подпись слота (ПОДНЯТА ВЫШЕ, ближе к квадрату)
         arcade.draw_text(
             slot_name,
-            x, y - SLOT_SIZE//2 - 15,
+            x, y - SLOT_SIZE//2 - 0,  # Было -15, стало -5
             (100, 100, 100), 10,
             anchor_x="center", anchor_y="top",
             font_name="Arial"
@@ -219,6 +220,17 @@ def draw_inventory_slot(x, y, item, index):
             anchor_x="center", anchor_y="center"
         )
     
+    # НОВОЕ: Отображаем редкость предмета (внизу слота)
+    rarity_name = RARITY_NAMES.get(item.rarity, "")
+    if rarity_name:
+        arcade.draw_text(
+            rarity_name[:3].upper(),  # Первые 3 буквы: ОБЫ, РЕД, ЭПИ, ЛЕГ
+            x, y - SLOT_SIZE//2 + 8,
+            color, 8,
+            anchor_x="center", anchor_y="top",
+            font_name="Arial", bold=True
+        )
+    
     # Номер слота
     arcade.draw_text(
         str(index + 1),
@@ -227,7 +239,6 @@ def draw_inventory_slot(x, y, item, index):
         anchor_x="right", anchor_y="top",
         font_name="Arial"
     )
-
 
 def draw_bonuses(x, y, hero):
     """Рисует бонусы от экипировки"""

@@ -6,7 +6,7 @@ from items import RARITY_COMMON, Item
 from settings import (HERO_ATTACK, HERO_DEFENSE, HERO_START_GOLD,
                       HERO_START_HP, LEVEL_UP_HP_BONUS, LEVEL_UP_STAT_BONUS,
                       TILE_SIZE, UPGRADE_AMOUNT, UPGRADE_ATTACK_COST,
-                      UPGRADE_DEFENSE_COST, UPGRADE_HP_COST, XP_TO_LEVEL_UP)
+                      UPGRADE_DEFENSE_COST, UPGRADE_HP_COST, XP_TO_LEVEL_UP, MAX_ATTACK, MAX_DEFENSE, MAX_HP)
 
 
 class Hero:
@@ -126,25 +126,48 @@ class Hero:
             
         return leveled_up
 
+
     def upgrade_attack(self):
-        if self.gold >= UPGRADE_ATTACK_COST:
-            self.gold -= UPGRADE_ATTACK_COST
+        """Улучшение атаки (мягкий рост стоимости)"""
+        if self.attack >= MAX_ATTACK:
+            return False
+        
+        current_level = self.attack - HERO_ATTACK
+        cost = int(UPGRADE_ATTACK_COST * (1.5 ** current_level))  # 200, 300, 450, 675...
+        
+        if self.gold >= cost:
+            self.gold -= cost
             self.attack += UPGRADE_AMOUNT
             return True
         return False
     
     def upgrade_defense(self):
-        if self.gold >= UPGRADE_DEFENSE_COST:
-            self.gold -= UPGRADE_DEFENSE_COST
+        """Улучшение защиты (мягкий рост стоимости)"""
+        if self.defense >= MAX_DEFENSE:
+            return False
+        
+        current_level = self.defense - HERO_DEFENSE
+        cost = int(UPGRADE_DEFENSE_COST * (1.5 ** current_level))  # 200, 300, 450, 675...
+        
+        if self.gold >= cost:
+            self.gold -= cost
             self.defense += UPGRADE_AMOUNT
             return True
         return False
     
     def upgrade_hp(self):
-        if self.gold >= UPGRADE_HP_COST:
-            self.gold -= UPGRADE_HP_COST
-            self.max_hp += UPGRADE_AMOUNT * 2
-            self.hp += UPGRADE_AMOUNT * 2
+        """Улучшение HP (мягкий рост стоимости)"""
+        if self.max_hp >= MAX_HP:
+            return False
+        
+        current_level = (self.max_hp - HERO_START_HP) // (UPGRADE_AMOUNT * 2)
+        cost = int(UPGRADE_HP_COST * (1.5 ** current_level))  # 300, 450, 675, 1012...
+        
+        if self.gold >= cost:
+            self.gold -= cost
+            hp_increase = UPGRADE_AMOUNT * 2
+            self.max_hp += hp_increase
+            self.hp += hp_increase
             return True
         return False
     

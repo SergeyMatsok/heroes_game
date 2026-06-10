@@ -16,7 +16,7 @@ from settings import (
     ENEMY_DARK_ELF_HP, ENEMY_DARK_ELF_ATTACK, ENEMY_DARK_ELF_DEFENSE,
     ENEMY_GIANT_HP, ENEMY_GIANT_ATTACK, ENEMY_GIANT_DEFENSE,
     ENEMY_PHOENIX_HP, ENEMY_PHOENIX_ATTACK, ENEMY_PHOENIX_DEFENSE,
-    ENEMY_SCALING_PER_WEEK
+    ENEMY_SCALING_PER_WEEK, ENEMY_DAMAGE_SCALING
 )
 
 # Словарь с эмодзи (fallback если картинки не найдены)
@@ -139,12 +139,17 @@ class Enemy:
 
     def update_stats(self):
         """Пересчитывает характеристики в зависимости от текущей недели"""
+        # Базовое масштабирование HP и защиты
         multiplier = 1.0 + (self.spawn_week - 1) * ENEMY_SCALING_PER_WEEK
+        
+        # ДОПОЛНИТЕЛЬНЫЙ МНОЖИТЕЛЬ УРОНА
+        damage_multiplier = 1.0 + (self.spawn_week - 1) * ENEMY_DAMAGE_SCALING
+        
         hp_ratio = self.hp / self.max_hp if hasattr(self, 'max_hp') and self.max_hp > 0 else 1.0
         
         self.max_hp = int(self.base_hp * multiplier)
         self.hp = int(self.max_hp * hp_ratio)
-        self.attack = int(self.base_attack * multiplier)
+        self.attack = int(self.base_attack * multiplier * damage_multiplier)
         self.defense = int(self.base_defense * multiplier)
         
         if self.spawn_week == 1:
