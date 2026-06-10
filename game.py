@@ -183,7 +183,8 @@ class HeroesGame(arcade.Window):
         
 
         for enemy in self.enemies:
-            enemy.spawn_week = current_week
+            if enemy.spawn_week == 1:  # Только стартовые враги
+                enemy.spawn_week = current_week
             enemy.update_stats()
         
         def spawn_item(item_type, count):
@@ -463,10 +464,10 @@ class HeroesGame(arcade.Window):
         else:
             arcade.draw_text(f"🏰 МАГАЗИН | 💰: {self.hero.gold}", ui_center_x, 50, arcade.color.GOLD, 14, font_name="Arial", bold=True, anchor_x="center")
             
-            # Рассчитываем текущую стоимость
-            attack_cost = int(UPGRADE_ATTACK_COST * (1.5 ** (self.hero.attack - HERO_ATTACK)))
-            defense_cost = int(UPGRADE_DEFENSE_COST * (1.5 ** (self.hero.defense - HERO_DEFENSE)))
-            hp_cost = int(UPGRADE_HP_COST * (1.5 ** ((self.hero.max_hp - HERO_START_HP) // (UPGRADE_AMOUNT * 2))))
+            # Цена считается от количества УЖЕ КУПЛЕННЫХ улучшений
+            attack_cost = UPGRADE_ATTACK_COST + (self.hero.attack_upgrades * 150)
+            defense_cost = UPGRADE_DEFENSE_COST + (self.hero.defense_upgrades * 150)
+            hp_cost = UPGRADE_HP_COST + (self.hero.hp_upgrades * 200)
             
             # Проверяем лимиты
             attack_text = f"[1] Атака +{UPGRADE_AMOUNT} ({attack_cost}g)" if self.hero.attack < MAX_ATTACK else "[1] МАКС"

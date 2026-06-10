@@ -35,6 +35,11 @@ class Hero:
         self.bonus_attack = 0
         self.bonus_defense = 0
         self.bonus_hp = 0
+
+                # Счётчики купленных улучшений
+        self.attack_upgrades = 0
+        self.defense_upgrades = 0
+        self.hp_upgrades = 0
         # Загрузка текстуры героя
         script_dir = os.path.dirname(os.path.abspath(__file__))
         image_path = os.path.join(script_dir, "images", "hero.png")
@@ -128,49 +133,49 @@ class Hero:
 
 
     def upgrade_attack(self):
-        """Улучшение атаки (мягкий рост стоимости)"""
+        """Улучшение атаки (цена растёт только при покупке)"""
         if self.attack >= MAX_ATTACK:
             return False
         
-        current_level = self.attack - HERO_ATTACK
-        cost = int(UPGRADE_ATTACK_COST * (1.5 ** current_level))  # 200, 300, 450, 675...
+        # Цена зависит от количества УЖЕ КУПЛЕННЫХ улучшений
+        cost = UPGRADE_ATTACK_COST + (self.attack_upgrades * 150)
         
         if self.gold >= cost:
             self.gold -= cost
             self.attack += UPGRADE_AMOUNT
+            self.attack_upgrades += 1  # Увеличиваем счётчик
             return True
         return False
     
     def upgrade_defense(self):
-        """Улучшение защиты (мягкий рост стоимости)"""
+        """Улучшение защиты (цена растёт только при покупке)"""
         if self.defense >= MAX_DEFENSE:
             return False
         
-        current_level = self.defense - HERO_DEFENSE
-        cost = int(UPGRADE_DEFENSE_COST * (1.5 ** current_level))  # 200, 300, 450, 675...
+        cost = UPGRADE_DEFENSE_COST + (self.defense_upgrades * 150)
         
         if self.gold >= cost:
             self.gold -= cost
             self.defense += UPGRADE_AMOUNT
+            self.defense_upgrades += 1  # Увеличиваем счётчик
             return True
         return False
     
     def upgrade_hp(self):
-        """Улучшение HP (мягкий рост стоимости)"""
+        """Улучшение HP (цена растёт только при покупке)"""
         if self.max_hp >= MAX_HP:
             return False
         
-        current_level = (self.max_hp - HERO_START_HP) // (UPGRADE_AMOUNT * 2)
-        cost = int(UPGRADE_HP_COST * (1.5 ** current_level))  # 300, 450, 675, 1012...
+        cost = UPGRADE_HP_COST + (self.hp_upgrades * 200)
         
         if self.gold >= cost:
             self.gold -= cost
             hp_increase = UPGRADE_AMOUNT * 2
             self.max_hp += hp_increase
             self.hp += hp_increase
+            self.hp_upgrades += 1  # Увеличиваем счётчик
             return True
         return False
-    
 
     def add_to_inventory(self, item):
         """Добавляет предмет в инвентарь"""

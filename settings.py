@@ -29,7 +29,7 @@ COLOR_POTION = (0, 255, 127)
 COLOR_UI_BG = (40, 40, 40)
 
 # --- Параметры героя ---
-HERO_START_GOLD = 150
+HERO_START_GOLD = 350
 HERO_START_HP = 120
 HERO_ATTACK = 12
 HERO_DEFENSE = 6
@@ -63,7 +63,7 @@ ENEMY_GOLEM_COUNT = 4
 ENEMY_DRAGON_COUNT = 2
 
 # --- Параметры ресурсов (увеличены для большой карты) ---
-POTION_COUNT = 15
+POTION_COUNT = 25
 POTION_HEAL_AMOUNT = 40
 GOLD_COUNT = 30
 GOLD_PER_PILE = 60

@@ -27,37 +27,61 @@ RARITY_NAMES = {
 }
 
 # Базы предметов
+# Базы предметов (эпические ВСЕГДА лучше обычных)
 WEAPONS = [
-    {"name": "Ржавый меч", "attack": 3, "rarity": RARITY_COMMON},
-    {"name": "Стальной меч", "attack": 6, "rarity": RARITY_COMMON},
-    {"name": "Острый клинок", "attack": 10, "rarity": RARITY_RARE},
-    {"name": "Меч паладина", "attack": 15, "rarity": RARITY_RARE},
-    {"name": "Драконий клинок", "attack": 22, "rarity": RARITY_EPIC},
-    {"name": "Меч Архангела", "attack": 30, "rarity": RARITY_LEGENDARY},
-    {"name": "Боевой топор", "attack": 8, "rarity": RARITY_COMMON},
-    {"name": "Топор викинга", "attack": 14, "rarity": RARITY_RARE},
-    {"name": "Лук эльфа", "attack": 12, "rarity": RARITY_RARE},
-    {"name": "Посох мага", "attack": 18, "rarity": RARITY_EPIC},
+    # Обычные
+    {"name": "Ржавый меч", "attack": 3, "rarity": "common"},
+    {"name": "Стальной меч", "attack": 6, "rarity": "common"},
+    {"name": "Боевой топор", "attack": 8, "rarity": "common"},
+    
+    # Редкие (минимум +10)
+    {"name": "Острый клинок", "attack": 10, "rarity": "rare"},
+    {"name": "Меч паладина", "attack": 13, "rarity": "rare"},
+    {"name": "Топор викинга", "attack": 15, "rarity": "rare"},
+    {"name": "Лук эльфа", "attack": 12, "rarity": "rare"},
+    
+    # Эпические (минимум +18)
+    {"name": "Драконий клинок", "attack": 20, "rarity": "epic"},
+    {"name": "Меч Архангела", "attack": 25, "rarity": "epic"},
+    {"name": "Посох мага", "attack": 18, "rarity": "epic"},
+    
+    # Легендарные (минимум +30)
+    {"name": "Клинок Бессмертия", "attack": 35, "rarity": "legendary"},
+    {"name": "Меч Бога Войны", "attack": 40, "rarity": "legendary"},
 ]
 
 ARMORS = [
-    {"name": "Тряпичная одежда", "defense": 2, "hp": 10, "rarity": RARITY_COMMON},
-    {"name": "Кожаная броня", "defense": 4, "hp": 20, "rarity": RARITY_COMMON},
-    {"name": "Кольчуга", "defense": 7, "hp": 30, "rarity": RARITY_RARE},
-    {"name": "Латный доспех", "defense": 12, "hp": 50, "rarity": RARITY_RARE},
-    {"name": "Драконья чешуя", "defense": 18, "hp": 80, "rarity": RARITY_EPIC},
-    {"name": "Броня титана", "defense": 25, "hp": 120, "rarity": RARITY_LEGENDARY},
-    {"name": "Шлем воина", "defense": 3, "hp": 15, "rarity": RARITY_COMMON},
-    {"name": "Щит стража", "defense": 8, "hp": 40, "rarity": RARITY_RARE},
+    # Обычные
+    {"name": "Тряпичная одежда", "defense": 2, "hp": 10, "rarity": "common"},
+    {"name": "Кожаная броня", "defense": 4, "hp": 20, "rarity": "common"},
+    {"name": "Шлем воина", "defense": 3, "hp": 15, "rarity": "common"},
+    
+    # Редкие (минимум +7/30)
+    {"name": "Кольчуга", "defense": 7, "hp": 30, "rarity": "rare"},
+    {"name": "Латный доспех", "defense": 10, "hp": 45, "rarity": "rare"},
+    {"name": "Щит стража", "defense": 8, "hp": 40, "rarity": "rare"},
+    
+    # Эпические (минимум +15/70)
+    {"name": "Драконья чешуя", "defense": 16, "hp": 70, "rarity": "epic"},
+    {"name": "Броня титана", "defense": 20, "hp": 90, "rarity": "epic"},
+    
+    # Легендарные (минимум +25/120)
+    {"name": "Доспех Бога", "defense": 28, "hp": 130, "rarity": "legendary"},
 ]
 
 ACCESSORIES = [
-    {"name": "Кольцо силы", "attack": 5, "rarity": RARITY_RARE},
-    {"name": "Кольцо защиты", "defense": 5, "rarity": RARITY_RARE},
-    {"name": "Амулет жизни", "hp": 50, "rarity": RARITY_RARE},
-    {"name": "Перстень могущества", "attack": 10, "defense": 5, "rarity": RARITY_EPIC},
-    {"name": "Амулет дракона", "attack": 8, "hp": 60, "rarity": RARITY_EPIC},
-    {"name": "Кольцо бессмертия", "hp": 100, "rarity": RARITY_LEGENDARY},
+    # Редкие
+    {"name": "Кольцо силы", "attack": 5, "rarity": "rare"},
+    {"name": "Кольцо защиты", "defense": 5, "rarity": "rare"},
+    {"name": "Амулет жизни", "hp": 50, "rarity": "rare"},
+    
+    # Эпические (минимум +8/60)
+    {"name": "Перстень могущества", "attack": 10, "defense": 5, "rarity": "epic"},
+    {"name": "Амулет дракона", "attack": 8, "hp": 60, "rarity": "epic"},
+    
+    # Легендарные
+    {"name": "Кольцо бессмертия", "hp": 100, "rarity": "legendary"},
+    {"name": "Амулет Власти", "attack": 12, "defense": 8, "rarity": "legendary"},
 ]
 
 
@@ -69,7 +93,31 @@ class Item:
         self.attack = stats.get("attack", 0)
         self.defense = stats.get("defense", 0)
         self.hp = stats.get("hp", 0)
+        
+        # ПРОВЕРКА: эпические не могут быть слабее обычных
+        self._validate_stats()
+        
         self.value = self.calculate_value()
+    
+    def _validate_stats(self):
+        """Проверяет что статы соответствуют редкости"""
+        min_stats = {
+            "common": {"attack": 0, "defense": 0, "hp": 0},
+            "rare": {"attack": 8, "defense": 5, "hp": 25},
+            "epic": {"attack": 15, "defense": 12, "hp": 60},
+            "legendary": {"attack": 25, "defense": 20, "hp": 100}
+        }
+        
+        rarity_min = min_stats.get(self.rarity, {})
+        
+        if self.attack > 0 and self.attack < rarity_min.get("attack", 0):
+            self.attack = rarity_min["attack"]
+        
+        if self.defense > 0 and self.defense < rarity_min.get("defense", 0):
+            self.defense = rarity_min["defense"]
+        
+        if self.hp > 0 and self.hp < rarity_min.get("hp", 0):
+            self.hp = rarity_min["hp"]
     
     def calculate_value(self):
         """Рассчитывает стоимость предмета"""
