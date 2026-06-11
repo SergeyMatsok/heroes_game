@@ -99,3 +99,17 @@ MAX_ATTACK = 50
 MAX_DEFENSE = 35
 MAX_HP = 600
 
+# --- Типы объектов на карте ---
+OBJECT_NONE = 0
+OBJECT_GOLD = 1
+OBJECT_POTION = 2
+OBJECT_CHEST = 3          # Сундук с сокровищами
+OBJECT_MINE = 4           # Шахта (даёт золото)
+OBJECT_TAVERN = 5         # Таверна (лечит)
+OBJECT_TEMPLE = 6         # Храм (воскрешение)
+OBJECT_RUINS = 7          # Руины (редкие предметы)
+OBJECT_SHRINE = 8         # Святилище (баффы)
+OBJECT_DRAGON_LAIR = 9    # Логово дракона
+OBJECT_WATCHTOWER = 10    # Сторожевая башня
+OBJECT_MERCHANT = 11      # Торговец
+OBJECT_MAGIC_WELL = 12    # Магический колодец

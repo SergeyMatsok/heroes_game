@@ -160,41 +160,77 @@ class Item:
 
 
 def generate_random_item(min_week=1, max_week=3):
-    """Генерирует случайный предмет"""
-    # Определяем редкость на основе недели
-    roll = random.random()
-    if roll < 0.6:
-        rarity = RARITY_COMMON
-        pool = WEAPONS + ARMORS
-    elif roll < 0.85:
-        rarity = RARITY_RARE
-        pool = WEAPONS + ARMORS + ACCESSORIES
-    elif roll < 0.97:
-        rarity = RARITY_EPIC
-        pool = WEAPONS + ARMORS + ACCESSORIES
-    else:
-        rarity = RARITY_LEGENDARY
-        pool = WEAPONS + ARMORS + ACCESSORIES
+    """Генерирует случайный предмет с учётом редкости"""
+    import random
     
-    # Выбираем случайный предмет из пула
-    base_item = random.choice(pool)
+    # Шансы редкости
+    rarity_roll = random.random()
+    if rarity_roll < 0.50:  # 50% обычный
+        rarity = "common"
+        stat_multiplier = 1.0
+    elif rarity_roll < 0.80:  # 30% редкий
+        rarity = "rare"
+        stat_multiplier = 2.0
+    elif rarity_roll < 0.95:  # 15% эпический
+        rarity = "epic"
+        stat_multiplier = 3.5
+    else:  # 5% легендарный
+        rarity = "legendary"
+        stat_multiplier = 5.0
     
-    # Создаём предмет
-    if base_item in WEAPONS:
+    # Выбираем тип предмета
+    item_type_roll = random.random()
+    if item_type_roll < 0.40:
         item_type = ITEM_TYPE_WEAPON
-    elif base_item in ARMORS:
+        base_list = WEAPONS
+    elif item_type_roll < 0.75:
         item_type = ITEM_TYPE_ARMOR
+        base_list = ARMORS
     else:
         item_type = ITEM_TYPE_ACCESSORY
-
-
-    return Item(
-        name=base_item["name"],
-        item_type=item_type,
-        rarity=rarity,
-        attack=base_item.get("attack", 0),
-        defense=base_item.get("defense", 0),
-        hp=base_item.get("hp", 0)
-    )
+        base_list = ACCESSORIES
+    
+    # Выбираем базовый предмет
+    base_item = random.choice(base_list)
+    
+    # Усиливаем статы в зависимости от редкости
+    if item_type == ITEM_TYPE_WEAPON:
+        attack = int(base_item.get("attack", 5) * stat_multiplier)
+        item = Item(
+            name=base_item["name"],
+            item_type=item_type,
+            rarity=rarity,
+            attack=attack
+        )
+    elif item_type == ITEM_TYPE_ARMOR:
+        defense = int(base_item.get("defense", 3) * stat_multiplier)
+        hp = int(base_item.get("hp", 10) * stat_multiplier)
+        item = Item(
+            name=base_item["name"],
+            item_type=item_type,
+            rarity=rarity,
+            defense=defense,
+            hp=hp
+        )
+    else:  # ACCESSORY
+        # Аксессуары могут давать разные бонусы
+        bonus_type = random.choice(["attack", "defense", "hp", "mixed"])
+        if bonus_type == "attack":
+            attack = int(base_item.get("attack", 3) * stat_multiplier)
+            item = Item(name=base_item["name"], item_type=item_type, rarity=rarity, attack=attack)
+        elif bonus_type == "defense":
+            defense = int(base_item.get("defense", 3) * stat_multiplier)
+            item = Item(name=base_item["name"], item_type=item_type, rarity=rarity, defense=defense)
+        elif bonus_type == "hp":
+            hp = int(base_item.get("hp", 15) * stat_multiplier)
+            item = Item(name=base_item["name"], item_type=item_type, rarity=rarity, hp=hp)
+        else:  # mixed
+            attack = int(base_item.get("attack", 2) * stat_multiplier * 0.6)
+            defense = int(base_item.get("defense", 2) * stat_multiplier * 0.6)
+            hp = int(base_item.get("hp", 10) * stat_multiplier * 0.6)
+            item = Item(name=base_item["name"], item_type=item_type, rarity=rarity, 
+                       attack=attack, defense=defense, hp=hp)
+    
+    return item
         
 

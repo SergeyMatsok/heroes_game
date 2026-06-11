@@ -9,6 +9,11 @@ from hero import Hero
 from inventory_ui import draw_inventory
 from map_generator import (generate_gold_positions, generate_map,
                            generate_potion_positions)
+from map_objects import (OBJECT_CHEST, OBJECT_DRAGON_LAIR, OBJECT_GOLD,
+                         OBJECT_MAGIC_WELL, OBJECT_MERCHANT, OBJECT_MINE,
+                         OBJECT_POTION, OBJECT_RUINS, OBJECT_SHRINE,
+                         OBJECT_TAVERN, OBJECT_TEMPLE, OBJECT_WATCHTOWER,
+                         generate_map_objects, get_random_position)
 from potion import Potion
 from quest import (QUEST_COLLECT_GOLD, QUEST_COLLECT_POTIONS,
                    QUEST_EXPLORE_TILES, QUEST_KILL_ENEMIES, Quest,
@@ -24,13 +29,15 @@ from settings import (COLOR_FOREST, COLOR_GOLD, COLOR_GRASS,
                       ENEMY_GOLEM_COUNT, ENEMY_LICH_CHANCE, ENEMY_LICH_COUNT,
                       ENEMY_SKELETON_CHANCE, ENEMY_SKELETON_COUNT,
                       ENEMY_WOLF_CHANCE, ENEMY_WOLF_COUNT, GOLD_PER_PILE,
-                      GOLD_SPAWN_PER_WEEK, MAP_HEIGHT, MAP_WIDTH,
-                      POTION_SPAWN_PER_WEEK, SCREEN_HEIGHT, SCREEN_TITLE,
-                      SCREEN_WIDTH, TERRAIN_FOREST, TERRAIN_GRASS,
-                      TERRAIN_MOUNTAIN, TERRAIN_WATER, TILE_SIZE,
-                      TURNS_PER_DAY, TURNS_PER_WEEK, UPGRADE_AMOUNT,
-                      UPGRADE_ATTACK_COST, UPGRADE_DEFENSE_COST,
-                      UPGRADE_HP_COST, WEEKS_TO_WIN, XP_PER_KILL, MAX_HP, MAX_DEFENSE, MAX_ATTACK, HERO_START_HP, HERO_DEFENSE, HERO_ATTACK)
+                      GOLD_SPAWN_PER_WEEK, HERO_ATTACK, HERO_DEFENSE,
+                      HERO_START_HP, MAP_HEIGHT, MAP_WIDTH, MAX_ATTACK,
+                      MAX_DEFENSE, MAX_HP, POTION_SPAWN_PER_WEEK,
+                      SCREEN_HEIGHT, SCREEN_TITLE, SCREEN_WIDTH,
+                      TERRAIN_FOREST, TERRAIN_GRASS, TERRAIN_MOUNTAIN,
+                      TERRAIN_WATER, TILE_SIZE, TURNS_PER_DAY, TURNS_PER_WEEK,
+                      UPGRADE_AMOUNT, UPGRADE_ATTACK_COST,
+                      UPGRADE_DEFENSE_COST, UPGRADE_HP_COST, WEEKS_TO_WIN,
+                      XP_PER_KILL)
 
 # Размеры областей
 CONSOLE_WIDTH = 250       # Узкая консоль
@@ -51,8 +58,7 @@ class HeroesGame(arcade.Window):
         self.game_width = self.width - CONSOLE_WIDTH
         self.game_height = self.height - UI_HEIGHT
         
-        print(f"🖥️ Размер окна: {self.width}x{self.height}")
-        print(f"🎮 Игровая зона: {self.game_width}x{self.game_height}")
+
         
         self.camera_x = 0
         self.camera_y = 0
@@ -71,6 +77,12 @@ class HeroesGame(arcade.Window):
         self.combat_state = None  # None или {'phase': 'hero_attack', 'timer': 0, ...}
         self.show_controls = False  # Показывать ли подсказки
         self.show_inventory = False
+        self.mouse_x = 0
+        self.mouse_y = 0
+        self.hovered_object = None
+        self.hovered_item = None
+        self.hovered_enemy = None
+        self.hovered_hero = False
         arcade.set_background_color((10, 10, 15))
 
 
@@ -88,14 +100,15 @@ class HeroesGame(arcade.Window):
             self.messages.pop(0)
         print(text)
     
+    
     def reset_game(self):
         self.game_map = generate_map()
         self.hero = Hero(0, 0)
         self.game_map[self.hero.y][self.hero.x] = TERRAIN_GRASS
         
-        self.gold_positions = generate_gold_positions(self.game_map, self.hero.x, self.hero.y)
-        self.potion_positions = generate_potion_positions(self.game_map, self.hero.x, self.hero.y, self.gold_positions)
-        self.potions = [Potion(x, y) for x, y in self.potion_positions]
+        # Генерируем все объекты на карте (включая золото и зелья)
+        self.map_objects = generate_map_objects(self.game_map, self.hero.x, self.hero.y)
+        
         self.enemies = self.generate_enemies()
         
         self.game_over = False
@@ -104,7 +117,6 @@ class HeroesGame(arcade.Window):
         self.level_up_timer = 0
         self.turns = 0
         self.messages = []
-
 
         self.quests = []
         self.completed_quests = []
@@ -115,7 +127,7 @@ class HeroesGame(arcade.Window):
 
         self.items_on_map = []
         
-        # Генерируем случайные предметы
+        # Генерируем случайные предметы экипировки
         for _ in range(10):
             x = random.randint(0, MAP_WIDTH - 1)
             y = random.randint(0, MAP_HEIGHT - 1)
@@ -130,7 +142,249 @@ class HeroesGame(arcade.Window):
         self.update_fog()
         self.update_camera()
         self.log_message("🏰 Добро пожаловать в Бесконечное Королевство!")
+
+
+    def _draw_hover_tooltips(self):
+        """Рисует подсказки при наведении мыши"""
+        tooltip_lines = []
+        title_color = arcade.color.WHITE
+        
+        # Подсказка для героя
+        if self.hovered_hero:
+            tooltip_lines = [
+                f"👤 Герой (Ур. {self.hero.level})",
+                f"❤️ HP: {self.hero.hp}/{self.hero.max_hp}",
+                f"⚔️ Атака: {self.hero.attack}",
+                f"🛡️ Защита: {self.hero.defense}",
+                f"💰 Золото: {self.hero.gold}",
+                f"⭐ Опыт: {self.hero.xp}"
+            ]
+            title_color = arcade.color.GREEN
+        
+        # Подсказка для объекта карты
+        elif self.hovered_object:
+            obj = self.hovered_object
+            tooltip_lines = [f"📍 {obj.get_name()}"]
+            
+            from map_objects import (OBJECT_GOLD, OBJECT_POTION, OBJECT_CHEST, OBJECT_MINE,
+                                     OBJECT_TAVERN, OBJECT_TEMPLE, OBJECT_RUINS, OBJECT_SHRINE,
+                                     OBJECT_DRAGON_LAIR, OBJECT_WATCHTOWER, OBJECT_MERCHANT,
+                                     OBJECT_MAGIC_WELL)
+            
+            if obj.type == OBJECT_GOLD:
+                tooltip_lines.append(f"💰 {GOLD_PER_PILE} золота")
+            elif obj.type == OBJECT_POTION:
+                tooltip_lines.append(f"🧪 Восстанавливает 40 HP")
+            elif obj.type == OBJECT_CHEST:
+                tooltip_lines.append(f"📦 {obj.value} золота")
+            elif obj.type == OBJECT_TAVERN:
+                tooltip_lines.append(f"🍺 Полное восстановление HP")
+                tooltip_lines.append(f"💵 Бесплатно")
+            elif obj.type == OBJECT_TEMPLE:
+                tooltip_lines.append(f"⛪ Полное восстановление HP")
+                tooltip_lines.append(f"💵 Бесплатно")
+            elif obj.type == OBJECT_MERCHANT:
+                tooltip_lines.append(f"🏪 Нажмите M рядом чтобы открыть")
+                tooltip_lines.append(f"📦 Покупка улучшений")
+            elif obj.type == OBJECT_MINE:
+                tooltip_lines.append(f"⛏️ 50 золота")
+            elif obj.type == OBJECT_RUINS:
+                tooltip_lines.append(f"🏛️ Шанс найти предмет или золото")
+            elif obj.type == OBJECT_SHRINE:
+                tooltip_lines.append(f"🗿 Случайный бафф (+2 к характеристике)")
+            elif obj.type == OBJECT_WATCHTOWER:
+                tooltip_lines.append(f"🗼 Открывает область карты")
+            elif obj.type == OBJECT_DRAGON_LAIR:
+                tooltip_lines.append(f"🐉 Опасно! Спавнит дракона")
+            elif obj.type == OBJECT_MAGIC_WELL:
+                tooltip_lines.append(f"⛲ +3 к атаке и защите")
+            
+            title_color = arcade.color.YELLOW
+        
+        # Подсказка для предмета
+        elif self.hovered_item:
+            item = self.hovered_item
+            rarity_colors = {
+                "common": arcade.color.WHITE,
+                "rare": (100, 100, 255),
+                "epic": (200, 100, 255),
+                "legendary": (255, 165, 0)
+            }
+            title_color = rarity_colors.get(item.rarity, arcade.color.WHITE)
+            
+            tooltip_lines = [f"🎁 {item.name}"]
+            
+            if item.attack > 0:
+                tooltip_lines.append(f"⚔️ Атака: +{item.attack}")
+            if item.defense > 0:
+                tooltip_lines.append(f"🛡️ Защита: +{item.defense}")
+            if item.hp > 0:
+                tooltip_lines.append(f"❤️ Здоровье: +{item.hp}")
+            
+            rarity_names = {"common": "Обычный", "rare": "Редкий", "epic": "Эпический", "legendary": "Легендарный"}
+            tooltip_lines.append(f"📊 {rarity_names.get(item.rarity, item.rarity)}")
+        
+        # Подсказка для врага
+        elif self.hovered_enemy:
+            enemy = self.hovered_enemy
+            names = {
+                "wolf": "Волк", "goblin": "Гоблин", "skeleton": "Скелет",
+                "lich": "Лич", "golem": "Голем", "dragon": "Дракон",
+                "orc": "Орк", "troll": "Тролль", "vampire": "Вампир",
+                "demon": "Демон", "bandit": "Бандит", "dark_elf": "Тёмный эльф",
+                "giant": "Гигант", "phoenix": "Феникс"
+            }
+            enemy_name = names.get(enemy.type, "Враг")
+            
+            tooltip_lines = [
+                f"👹 {enemy_name}{enemy.title}",
+                f"❤️ HP: {enemy.hp}/{enemy.max_hp}",
+                f"⚔️ Атака: {enemy.attack}",
+                f"🛡️ Защита: {enemy.defense}",
+                f"📅 Неделя спавна: {enemy.spawn_week}"
+            ]
+            title_color = arcade.color.RED
+        
+        # Рисуем подсказку если есть
+        if tooltip_lines:
+            self._render_tooltip(self.mouse_x, self.mouse_y, tooltip_lines, title_color)
     
+    def _render_tooltip(self, x, y, lines, title_color):
+        """Рисует подсказку рядом с курсором"""
+        if not lines:
+            return
+        
+        # Функция для оценки ширины текста
+        def estimate_text_width(text):
+            width = 0
+            for char in text:
+                # Эмодзи и специальные символы шире
+                if ord(char) > 0x1F000 or char in '👤❤️⚔️🛡️💰⭐📍🧪📦🍺⛪🏪⛏️🏛️🗿🗼🐉⛲🎁📊👹📅':
+                    width += 14
+                # Русские буквы и обычные символы
+                elif ord(char) > 0x400:
+                    width += 7
+                else:
+                    width += 6
+            return width
+        
+        # Измеряем ширину каждой строки
+        line_widths = [estimate_text_width(line) for line in lines]
+        
+        max_width = max(line_widths) if line_widths else 100
+        padding = 12  # Отступы внутри прямоугольника
+        total_width = max_width + padding * 2
+        line_height = 18
+        total_height = len(lines) * line_height + padding * 2
+        
+        # Позиционируем подсказку рядом с курсором (справа и чуть выше)
+        tooltip_x = x + 15
+        tooltip_y = y + 10
+        
+        # Ограничиваем чтобы не выходило за экран
+        if tooltip_x + total_width > self.width:
+            tooltip_x = x - total_width - 15  # Показываем слева от курсора
+        if tooltip_y + total_height > self.height:
+            tooltip_y = self.height - total_height - 5
+        if tooltip_y < 0:
+            tooltip_y = 5
+        
+        # Рисуем фон
+        arcade.draw_lbwh_rectangle_filled(
+            tooltip_x, tooltip_y, total_width, total_height,
+            (20, 20, 30, 240)
+        )
+        arcade.draw_lbwh_rectangle_outline(
+            tooltip_x, tooltip_y, total_width, total_height,
+            (150, 150, 150), 1
+        )
+        
+        # Рисуем текст (начинаем с верхней строки)
+        text_y = tooltip_y + total_height - padding - 5
+        for i, line in enumerate(lines):
+            color = title_color if i == 0 else arcade.color.LIGHT_GRAY
+            # Центрируем текст по горизонтали внутри прямоугольника
+            text_x = tooltip_x + total_width // 2
+            arcade.draw_text(
+                line,
+                text_x, text_y,
+                color, 11,
+                anchor_x="center", anchor_y="top",
+                font_name="Arial"
+            )
+            text_y -= line_height
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        """Отслеживание наведения мыши на объекты"""
+        self.mouse_x = x
+        self.mouse_y = y
+        
+        # Сбрасываем все hover
+        self.hovered_object = None
+        self.hovered_item = None
+        self.hovered_enemy = None
+        self.hovered_hero = False
+        
+        # ВАЖНО: учитываем смещение viewport (CONSOLE_WIDTH и UI_HEIGHT)
+        # Координаты мыши в системе координат viewport:
+        mouse_in_viewport_x = x - CONSOLE_WIDTH
+        mouse_in_viewport_y = y - UI_HEIGHT
+        
+        # Проверяем только если мышь в игровой зоне
+        if mouse_in_viewport_x < 0 or mouse_in_viewport_x > self.game_width:
+            return
+        if mouse_in_viewport_y < 0 or mouse_in_viewport_y > self.game_height:
+            return
+        
+        # Проверяем героя
+        hero_screen_x = self.hero.x * TILE_SIZE - self.camera_x
+        hero_screen_y = self.hero.y * TILE_SIZE - self.camera_y
+        if (hero_screen_x <= mouse_in_viewport_x <= hero_screen_x + TILE_SIZE and
+            hero_screen_y <= mouse_in_viewport_y <= hero_screen_y + TILE_SIZE):
+            self.hovered_hero = True
+            return
+        
+        # Проверяем объекты карты
+        if hasattr(self, 'map_objects'):
+            for obj in self.map_objects:
+                if obj.collected and not obj.permanent:
+                    continue
+                
+                if self.fog[obj.y][obj.x] != 2:
+                    continue
+                
+                screen_x = obj.x * TILE_SIZE - self.camera_x
+                screen_y = obj.y * TILE_SIZE - self.camera_y
+                
+                if (screen_x <= mouse_in_viewport_x <= screen_x + TILE_SIZE and
+                    screen_y <= mouse_in_viewport_y <= screen_y + TILE_SIZE):
+                    self.hovered_object = obj
+                    return
+        
+        # Проверяем предметы экипировки на карте
+        if hasattr(self, 'items_on_map'):
+            for item in self.items_on_map:
+                screen_x = item.x * TILE_SIZE - self.camera_x
+                screen_y = item.y * TILE_SIZE - self.camera_y
+                
+                if (screen_x <= mouse_in_viewport_x <= screen_x + TILE_SIZE and
+                    screen_y <= mouse_in_viewport_y <= screen_y + TILE_SIZE):
+                    self.hovered_item = item
+                    return
+        
+        # Проверяем врагов
+        for enemy in self.enemies:
+            if self.fog[enemy.y][enemy.x] != 2:
+                continue
+            
+            screen_x = enemy.x * TILE_SIZE - self.camera_x
+            screen_y = enemy.y * TILE_SIZE - self.camera_y
+            
+            if (screen_x <= mouse_in_viewport_x <= screen_x + TILE_SIZE and
+                screen_y <= mouse_in_viewport_y <= screen_y + TILE_SIZE):
+                self.hovered_enemy = enemy
+                return
+            
 
     def update_camera(self):
         """Смещаем камеру так, чтобы герой был в центре, но не выходил за границы"""
@@ -171,49 +425,53 @@ class HeroesGame(arcade.Window):
     
     def spawn_weekly_resources_and_enemies(self):
         current_week = (self.turns // TURNS_PER_WEEK) + 1
-        self.log_message(f" Неделя {current_week}: Появились новые ресурсы и враги!")
+        self.log_message(f"📅 Неделя {current_week}: Появились новые ресурсы и враги!")
         
         # Генерируем новые квесты
         new_quests = generate_weekly_quests(current_week, self.hero.level)
         self.quests.extend(new_quests)
         
-        # Уведомляем о новых квестах
         for quest in new_quests:
             self.log_message(f"📜 Новый квест: {quest.get_description()} | Награда: {quest.get_reward_text()}")
         
-
+        # Обновляем статистику врагов
         for enemy in self.enemies:
-            if enemy.spawn_week == 1:  # Только стартовые враги
+            if enemy.spawn_week == 1:
                 enemy.spawn_week = current_week
             enemy.update_stats()
         
-        def spawn_item(item_type, count):
-            for _ in range(count):
-                for attempt in range(200):
-                    x = random.randint(0, MAP_WIDTH - 1)
-                    y = random.randint(0, MAP_HEIGHT - 1)
-                    if (self.game_map[y][x] in (TERRAIN_GRASS, TERRAIN_FOREST) and
-                        (x, y) != (self.hero.x, self.hero.y) and
-                        (x, y) not in self.gold_positions and
-                        (x, y) not in self.potion_positions and
-                        not any(e.x == x and e.y == y for e in self.enemies)):
-                        if item_type == "gold":
-                            self.gold_positions.append((x, y))
-                        elif item_type == "potion":
-                            self.potions.append(Potion(x, y))
-                        break
+        # Спавним новые объекты карты
+        from map_objects import MapObject, get_random_position
+        new_objects = []
         
-        spawn_item("gold", GOLD_SPAWN_PER_WEEK)
-        spawn_item("potion", POTION_SPAWN_PER_WEEK)
+        # Золото
+        for _ in range(GOLD_SPAWN_PER_WEEK):
+            x, y = get_random_position(self.game_map, self.hero.x, self.hero.y, self.map_objects + new_objects)
+            if x is not None:
+                new_objects.append(MapObject(x, y, OBJECT_GOLD))
         
+        # Зелья
+        for _ in range(POTION_SPAWN_PER_WEEK):
+            x, y = get_random_position(self.game_map, self.hero.x, self.hero.y, self.map_objects + new_objects)
+            if x is not None:
+                new_objects.append(MapObject(x, y, OBJECT_POTION))
+        
+        # Сундуки
+        for _ in range(2):
+            x, y = get_random_position(self.game_map, self.hero.x, self.hero.y, self.map_objects + new_objects)
+            if x is not None:
+                chest = MapObject(x, y, OBJECT_CHEST, value=random.randint(100, 300))
+                new_objects.append(chest)
+        
+        self.map_objects.extend(new_objects)
+        
+        # Спавн врагов
         for _ in range(ENEMIES_SPAWN_PER_WEEK):
             for attempt in range(200):
                 x = random.randint(0, MAP_WIDTH - 1)
                 y = random.randint(0, MAP_HEIGHT - 1)
                 if (self.game_map[y][x] in (TERRAIN_GRASS, TERRAIN_FOREST) and
                     (x, y) != (self.hero.x, self.hero.y) and
-                    (x, y) not in self.gold_positions and
-                    (x, y) not in self.potion_positions and
                     not any(e.x == x and e.y == y for e in self.enemies)):
                     roll = random.random()
                     if roll < ENEMY_WOLF_CHANCE:
@@ -228,19 +486,19 @@ class HeroesGame(arcade.Window):
                         self.enemies.append(Enemy(x, y, "golem", current_week))
                     elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE:
                         self.enemies.append(Enemy(x, y, "dragon", current_week))
-                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15:  # orc
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15:
                         self.enemies.append(Enemy(x, y, "orc", current_week))
-                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08:  # troll
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08:
                         self.enemies.append(Enemy(x, y, "troll", current_week))
-                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07:  # vampire
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07:
                         self.enemies.append(Enemy(x, y, "vampire", current_week))
-                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05:  # demon
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05:
                         self.enemies.append(Enemy(x, y, "demon", current_week))
-                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05 + 0.12:  # bandit
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05 + 0.12:
                         self.enemies.append(Enemy(x, y, "bandit", current_week))
-                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05 + 0.12 + 0.06:  # dark_elf
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05 + 0.12 + 0.06:
                         self.enemies.append(Enemy(x, y, "dark_elf", current_week))
-                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05 + 0.12 + 0.06 + 0.04:  # giant
+                    elif roll < ENEMY_WOLF_CHANCE + ENEMY_GOBLIN_CHANCE + ENEMY_SKELETON_CHANCE + ENEMY_LICH_CHANCE + ENEMY_GOLEM_CHANCE + ENEMY_DRAGON_CHANCE + 0.15 + 0.08 + 0.07 + 0.05 + 0.12 + 0.06 + 0.04:
                         self.enemies.append(Enemy(x, y, "giant", current_week))
                     else:
                         self.enemies.append(Enemy(x, y, "phoenix", current_week))
@@ -257,16 +515,16 @@ class HeroesGame(arcade.Window):
                 elif self.fog[y][x] == 2:
                     self.fog[y][x] = 1
     
+
     def generate_enemies(self):
         enemies = []
         def add_enemy(enemy_type, count):
             for _ in range(count):
-                while True:
+                for attempt in range(200):
                     x = random.randint(0, MAP_WIDTH - 1)
                     y = random.randint(0, MAP_HEIGHT - 1)
                     if (self.game_map[y][x] in (TERRAIN_GRASS, TERRAIN_FOREST) and 
                         (x, y) != (self.hero.x, self.hero.y) and
-                        (x, y) not in self.gold_positions and (x, y) not in self.potion_positions and
                         not any(e.x == x and e.y == y for e in enemies)):
                         enemies.append(Enemy(x, y, enemy_type, spawn_week=1))
                         break
@@ -276,7 +534,6 @@ class HeroesGame(arcade.Window):
         add_enemy("lich", ENEMY_LICH_COUNT)
         add_enemy("golem", ENEMY_GOLEM_COUNT)
         add_enemy("dragon", ENEMY_DRAGON_COUNT)
-        # Новые враги (появляются со 2-3 недели)
         add_enemy("orc", 4)
         add_enemy("troll", 2)
         add_enemy("vampire", 2)
@@ -337,23 +594,21 @@ class HeroesGame(arcade.Window):
         elif terrain_type == TERRAIN_FOREST:
             arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, COLOR_FOREST)
     
+
     def on_draw(self):
         self.clear()
-        # Отладка (можно убрать потом)
         
         self.ctx.viewport = (CONSOLE_WIDTH, UI_HEIGHT, self.game_width, self.game_height)
         
-        
+        # Отрисовка карты
         for y in range(MAP_HEIGHT):
             for x in range(MAP_WIDTH):
                 world_x = x * TILE_SIZE
                 world_y = y * TILE_SIZE
                 
-                # Координаты на экране (относительно viewport)
                 screen_x = world_x - self.camera_x
                 screen_y = world_y - self.camera_y
                 
-                # Пропускаем если вне видимой области
                 if screen_x < -TILE_SIZE or screen_x > self.game_width + TILE_SIZE:
                     continue
                 if screen_y < -TILE_SIZE or screen_y > self.game_height + TILE_SIZE:
@@ -374,21 +629,15 @@ class HeroesGame(arcade.Window):
                         arcade.draw_text("🌲", screen_x + TILE_SIZE//2, screen_y + TILE_SIZE//2, 
                                          (255, 255, 255, 100), 32, anchor_x="center", anchor_y="center")
         
-        for gold_x, gold_y in self.gold_positions:
-            if self.fog[gold_y][gold_x] == 2:
-                screen_x = gold_x * TILE_SIZE - self.camera_x
-                screen_y = gold_y * TILE_SIZE - self.camera_y
-                arcade.draw_text("", screen_x + TILE_SIZE//2 + 2, screen_y + TILE_SIZE//2 - 2, (0,0,0,100), 28, anchor_x="center", anchor_y="center")
-                arcade.draw_text("💰", screen_x + TILE_SIZE//2, screen_y + TILE_SIZE//2, arcade.color.WHITE, 28, anchor_x="center", anchor_y="center")
+        # 🏰 ОТРИСОВКА ОБЪЕКТОВ КАРТЫ
+        if hasattr(self, 'map_objects'):
+            for obj in self.map_objects:
+                if not obj.collected and self.fog[obj.y][obj.x] == 2:
+                    screen_x = obj.x * TILE_SIZE - self.camera_x
+                    screen_y = obj.y * TILE_SIZE - self.camera_y
+                    obj.draw(screen_x, screen_y)
         
-        for potion in self.potions:
-            if self.fog[potion.y][potion.x] == 2:
-                screen_x = potion.x * TILE_SIZE - self.camera_x
-                screen_y = potion.y * TILE_SIZE - self.camera_y
-                arcade.draw_text("🧪", screen_x + TILE_SIZE//2 + 2, screen_y + TILE_SIZE//2 - 2, (0,0,0,100), 32, anchor_x="center", anchor_y="center")
-                arcade.draw_text("🧪", screen_x + TILE_SIZE//2, screen_y + TILE_SIZE//2, arcade.color.WHITE, 32, anchor_x="center", anchor_y="center")
-        
-        # 🎁 ПРЕДМЕТЫ НА КАРТЕ
+        # 🎁 ПРЕДМЕТЫ ЭКИПИРОВКИ НА КАРТЕ
         if hasattr(self, 'items_on_map'):
             for item in self.items_on_map:
                 if self.fog[item.y][item.x] == 2:
@@ -396,7 +645,6 @@ class HeroesGame(arcade.Window):
                     screen_y = item.y * TILE_SIZE - self.camera_y
                     color = item.get_color()
                     
-                    # Иконка в зависимости от типа
                     if item.type == "weapon":
                         icon = "⚔️"
                     elif item.type == "armor":
@@ -406,34 +654,28 @@ class HeroesGame(arcade.Window):
                     else:
                         icon = "📦"
                     
-                    # Тень
                     arcade.draw_text(icon, screen_x + TILE_SIZE//2 + 2, screen_y + TILE_SIZE//2 - 2, (0,0,0,100), 28, anchor_x="center", anchor_y="center")
-                    # Предмет с цветом редкости
                     arcade.draw_text(icon, screen_x + TILE_SIZE//2, screen_y + TILE_SIZE//2, color, 28, anchor_x="center", anchor_y="center")
         
+        # Враги
         for enemy in self.enemies:
             if self.fog[enemy.y][enemy.x] == 2:
                 screen_x = enemy.x * TILE_SIZE - self.camera_x
                 screen_y = enemy.y * TILE_SIZE - self.camera_y
                 enemy.draw(screen_x, screen_y)
         
+        # Герой
         hero_screen_x = self.hero.x * TILE_SIZE - self.camera_x
         hero_screen_y = self.hero.y * TILE_SIZE - self.camera_y
         self.hero.draw(hero_screen_x, hero_screen_y)
         self.combat_animator.draw()
         
-        
         # ==========================================
-        # 2. СБРАСЫВАЕМ viewport и рисуем UI ПОВЕРХ
+        # UI (сбрасываем viewport)
         # ==========================================
         self.ctx.viewport = (0, 0, self.width, self.height)
         
-        # Консоль слева (используем self.game_height вместо GAME_HEIGHT)
-        console_bg_x = CONSOLE_WIDTH / 2
-        console_bg_y = UI_HEIGHT + (self.game_height / 2)
-        # arcade.draw_lbwh_rectangle_filled(console_bg_x, console_bg_y, CONSOLE_WIDTH, self.game_height, (15, 15, 20))
-        
-        arcade.draw_text(" ЖУРНАЛ СОБЫТИЙ", 15, self.height - 40, arcade.color.GOLD, 14, font_name="Arial", bold=True)
+        arcade.draw_text("📜 ЖУРНАЛ СОБЫТИЙ", 15, self.height - 40, arcade.color.GOLD, 14, font_name="Arial", bold=True)
         arcade.draw_line(10, self.height - 55, CONSOLE_WIDTH - 15, self.height - 55, (100, 100, 100), 1)
         
         y_offset = self.height - 80
@@ -441,10 +683,8 @@ class HeroesGame(arcade.Window):
             display_msg = msg[:45] + ("..." if len(msg) > 45 else "")
             arcade.draw_text(display_msg, 15, y_offset - (i * 20), arcade.color.LIGHT_GRAY, 12, font_name="Arial")
         
-        # Нижняя панель
         ui_center_x = CONSOLE_WIDTH + self.game_width / 2
         ui_center_y = UI_HEIGHT / 2
-        
         
         current_day = (self.turns // TURNS_PER_DAY) + 1
         current_week = (self.turns // TURNS_PER_WEEK) + 1
@@ -454,35 +694,35 @@ class HeroesGame(arcade.Window):
                              CONSOLE_WIDTH + 15, 50, arcade.color.WHITE, 13, font_name="Arial", bold=True)
             arcade.draw_text(f"Ур: {self.hero.level} | 💰: {self.hero.gold} | ❤️: {self.hero.hp}/{self.hero.max_hp}", 
                              ui_center_x, 30, arcade.color.WHITE, 13, font_name="Arial", anchor_x="center")
-            arcade.draw_text(f"⚔️: {self.hero.attack} | ️: {self.hero.defense} | : {len(self.enemies)} | [M] Магазин", 
+            arcade.draw_text(f"⚔️: {self.hero.attack} | 🛡️: {self.hero.defense} | 👹: {len(self.enemies)} | [M] Магазин", 
                              self.width - 380, 30, arcade.color.LIGHT_GRAY, 12, font_name="Arial")
             
-            # ПОДСКАЗКА О КЛАВИШЕ H
             arcade.draw_text("[H] Подсказки | [I] Инвентарь", 
                              self.width - 20, 50, (100, 200, 255), 11, 
                              font_name="Arial", anchor_x="right")
         else:
             arcade.draw_text(f"🏰 МАГАЗИН | 💰: {self.hero.gold}", ui_center_x, 50, arcade.color.GOLD, 14, font_name="Arial", bold=True, anchor_x="center")
             
-            # Цена считается от количества УЖЕ КУПЛЕННЫХ улучшений
             attack_cost = UPGRADE_ATTACK_COST + (self.hero.attack_upgrades * 150)
             defense_cost = UPGRADE_DEFENSE_COST + (self.hero.defense_upgrades * 150)
             hp_cost = UPGRADE_HP_COST + (self.hero.hp_upgrades * 200)
             
-            # Проверяем лимиты
             attack_text = f"[1] Атака +{UPGRADE_AMOUNT} ({attack_cost}g)" if self.hero.attack < MAX_ATTACK else "[1] МАКС"
             defense_text = f"[2] Защита +{UPGRADE_AMOUNT} ({defense_cost}g)" if self.hero.defense < MAX_DEFENSE else "[2] МАКС"
             hp_text = f"[3] HP +{UPGRADE_AMOUNT*2} ({hp_cost}g)" if self.hero.max_hp < MAX_HP else "[3] МАКС"
             
-            arcade.draw_text(f"{attack_text} | {defense_text} | {hp_text} | [ESC] Закрыть", 
+            # Показываем предметы для продажи
+            sell_info = " | [4-9] Продать предмет"
+            if self.hero.inventory:
+                sell_info += f" ({len(self.hero.inventory)} предм.)"
+            
+            arcade.draw_text(f"{attack_text} | {defense_text} | {hp_text}{sell_info} | [ESC] Закрыть", 
                              ui_center_x, 30, arcade.color.LIGHT_GRAY, 11, font_name="Arial", anchor_x="center")
         
-        # Уведомление о повышении уровня
         if self.level_up_timer > 0:
             arcade.draw_text(f"🎉 Уровень повышен! Теперь вы {self.hero.level} уровня!", ui_center_x, self.height / 2 + 50, arcade.color.GOLD, 32, anchor_x="center", font_name="Arial", bold=True)
             self.level_up_timer -= 1
         
-        # Квесты
         if self.quests:
             arcade.draw_line(10, 180, CONSOLE_WIDTH - 15, 180, (100, 100, 100), 1)
             arcade.draw_text("📋 АКТИВНЫЕ КВЕСТЫ:", 15, 165, arcade.color.GOLD, 12, font_name="Arial", bold=True)
@@ -493,7 +733,6 @@ class HeroesGame(arcade.Window):
                 arcade.draw_text(quest.get_progress_text(), CONSOLE_WIDTH - 60, y_quest, arcade.color.YELLOW, 10, font_name="Arial", anchor_x="right")
                 y_quest -= 25
         
-        # Сообщения о конце игры
         if self.game_over:
             if self.victory:
                 msg = f"🏆 ПОБЕДА! Вы успешно правили {WEEKS_TO_WIN} недель!"
@@ -504,18 +743,18 @@ class HeroesGame(arcade.Window):
             arcade.draw_text(msg, ui_center_x, self.height / 2, color, 28, anchor_x="center", font_name="Arial", bold=True)
             arcade.draw_text("Нажмите R для новой игры", ui_center_x, self.height / 2 - 40, arcade.color.WHITE, 18, anchor_x="center", font_name="Arial")
 
-        # ==========================================
-        # ПОСЛЕДНИЙ БЛОК: Подсказки (если включены)
-        # ==========================================
         if self.show_controls:
             draw_controls_panel()
         
-                # Инвентарь
         if self.show_inventory:
             draw_inventory(self)
 
-    def on_key_press(self, key, modifiers):
+        # ==========================================
+        # ПОДСКАЗКИ ПРИ НАВЕДЕНИИ (ТОЛЬКО ОДИН РАЗ В КОНЦЕ!)
+        # ==========================================
+        self._draw_hover_tooltips()
 
+    def on_key_press(self, key, modifiers):
         if key in (arcade.key.F1, arcade.key.H):
             self.show_controls = not self.show_controls
             return
@@ -543,11 +782,26 @@ class HeroesGame(arcade.Window):
             self.set_fullscreen(not self.fullscreen)
             return
 
+        # Магазин открывается только рядом с магазином (клавиша M)
         if key == arcade.key.M:
-            self.shop_mode = True
+            # Проверяем есть ли магазин рядом
+            merchant_nearby = False
+            if hasattr(self, 'map_objects'):
+                for obj in self.map_objects:
+                    if obj.type == OBJECT_MERCHANT and obj.permanent:
+                        dist = abs(obj.x - self.hero.x) + abs(obj.y - self.hero.y)
+                        if dist <= 1:
+                            merchant_nearby = True
+                            break
+            
+            if merchant_nearby:
+                self.shop_mode = True
+                self.log_message(" Магазин открыт!")
+            else:
+                self.log_message("❌ Рядом нет магазина! Найдите здание торговца.")
             return
         
-                # Сохранение (F5)
+        # Сохранение (F5)
         if key == arcade.key.F5:
             if save_game(self):
                 self.log_message("💾 Игра сохранена!")
@@ -559,7 +813,7 @@ class HeroesGame(arcade.Window):
                 self.log_message("📂 Игра загружена!")
             return
         
-                # Инвентарь (I)
+        # Инвентарь (I)
         if key == arcade.key.I:
             self.show_inventory = not self.show_inventory
             return
@@ -574,6 +828,28 @@ class HeroesGame(arcade.Window):
                 if slot < len(self.hero.inventory):
                     success, msg = self.hero.equip_item(slot)
                     self.log_message(msg)
+            return
+
+        if self.shop_mode:
+            if key == arcade.key.ESCAPE: 
+                self.shop_mode = False
+            
+            # Продажа предметов (клавиши 4-9 для предметов 1-6 в инвентаре)
+            elif key in range(arcade.key.KEY_4, arcade.key.KEY_9 + 1):
+                slot = key - arcade.key.KEY_4  # 0-5
+                if slot < len(self.hero.inventory):
+                    item = self.hero.inventory[slot]
+                    sell_price = self._get_item_sell_price(item)
+                    self.hero.gold += sell_price
+                    self.hero.inventory.pop(slot)
+                    self.log_message(f"💰 Продано: {item.name} за {sell_price} золота")
+            
+            elif key == arcade.key.KEY_1 and self.hero.upgrade_attack(): 
+                self.log_message(f"⚔️ Атака улучшена! Теперь: {self.hero.attack}")
+            elif key == arcade.key.KEY_2 and self.hero.upgrade_defense(): 
+                self.log_message(f"🛡️ Защита улучшена! Теперь: {self.hero.defense}")
+            elif key == arcade.key.KEY_3 and self.hero.upgrade_hp(): 
+                self.log_message(f"❤️ Здоровье улучшено! Теперь: {self.hero.max_hp}")
             return
         
         new_x, new_y = self.hero.x, self.hero.y
@@ -597,22 +873,14 @@ class HeroesGame(arcade.Window):
                 self.hero.y = new_y
                 action_taken = True
                 
-                # Сбор золота (ТОЛЬКО после движения)
-                if (self.hero.x, self.hero.y) in self.gold_positions:
-                    self.gold_positions.remove((self.hero.x, self.hero.y))
-                    self.hero.gold += GOLD_PER_PILE
-                    self.log_message("💰 Вы нашли золото!")
-                    self.update_quest_progress("gold", amount=GOLD_PER_PILE)
+                # 🏰 ОБРАБОТКА ОБЪЕКТОВ КАРТЫ (вместо золота и зелий)
+                if hasattr(self, 'map_objects'):
+                    obj_on_cell = next((obj for obj in self.map_objects 
+                                       if obj.x == self.hero.x and obj.y == self.hero.y and not obj.collected), None)
+                    if obj_on_cell:
+                        self.handle_object_interaction(obj_on_cell)
                 
-                # Сбор зелий (ТОЛЬКО после движения)
-                potion_on_cell = next((p for p in self.potions if p.x == self.hero.x and p.y == self.hero.y), None)
-                if potion_on_cell:
-                    self.hero.heal(potion_on_cell.heal_amount)
-                    self.potions.remove(potion_on_cell)
-                    self.log_message(f"🧪 Вы выпили зелье! HP: {self.hero.hp}/{self.hero.max_hp}")
-                    self.update_quest_progress("potion")
-                
-                # 🎁 Сбор предметов (ТОЛЬКО после движения)
+                # 🎁 Сбор предметов экипировки (ТОЛЬКО после движения)
                 if hasattr(self, 'items_on_map'):
                     item_on_cell = next((item for item in self.items_on_map 
                                         if item.x == self.hero.x and item.y == self.hero.y), None)
@@ -632,31 +900,7 @@ class HeroesGame(arcade.Window):
             self.update_enemies()
             self.update_camera()
     
-    # def combat(self, enemy):
-    #     damage_to_enemy = enemy.take_damage(self.hero.attack)
-    #     if enemy.is_alive():
-    #         self.hero.take_damage(enemy.attack)
-    #         if not self.hero.is_alive():
-    #             self.game_over = True
-    #             self.victory = False
-    #     else:
-    #         self.enemies.remove(enemy)
-    #         self.log_message(f"🏆 Вы победили {enemy.emoji} и получили {XP_PER_KILL} XP!")
-            
-    #         # Отслеживаем убитых врагов по типам
-    #         if enemy.type not in self.enemies_killed_by_type:
-    #             self.enemies_killed_by_type[enemy.type] = 0
-    #         self.enemies_killed_by_type[enemy.type] += 1
-            
-    #         # Обновляем квесты
-    #         self.update_quest_progress("kill", enemy_type=enemy.type)
-            
-    #         if self.hero.gain_xp(XP_PER_KILL):
-    #             self.level_up_timer = 120
-    #             self.log_message(f"🎉 Уровень повышен! Теперь вы {self.hero.level} уровня!")
-    #         self.update_fog()
-    #         self.update_enemies()
-    #         self.update_camera()
+
     def combat(self, enemy):
         """Начать анимированный бой"""
         # Позиции ОТНОСИТЕЛЬНО viewport (без CONSOLE_WIDTH и UI_HEIGHT!)
@@ -782,8 +1026,8 @@ class HeroesGame(arcade.Window):
         if not self.show_inventory:
             return
         
-        from inventory_ui import SLOT_SIZE, SLOT_PADDING
-        
+        from inventory_ui import SLOT_PADDING, SLOT_SIZE
+
         # Координаты панели (должны совпадать с draw_inventory)
         panel_width = 900
         panel_height = 600
@@ -851,7 +1095,149 @@ class HeroesGame(arcade.Window):
                 slot_y - slot_size//2 <= mouse_y <= slot_y + slot_size//2)
     
 
+    def handle_object_interaction(self, obj):
+        """Обрабатывает взаимодействие с объектом на карте"""
+        from map_objects import (OBJECT_GOLD, OBJECT_POTION, OBJECT_CHEST, OBJECT_MINE,
+                                OBJECT_TAVERN, OBJECT_TEMPLE, OBJECT_RUINS, OBJECT_SHRINE,
+                                OBJECT_DRAGON_LAIR, OBJECT_WATCHTOWER, OBJECT_MERCHANT,
+                                OBJECT_MAGIC_WELL)
+        
+        if obj.type == OBJECT_GOLD:
+            self.hero.gold += GOLD_PER_PILE
+            self.log_message(f"💰 Вы нашли {GOLD_PER_PILE} золота!")
+            self.update_quest_progress("gold", amount=GOLD_PER_PILE)
+            if not obj.permanent:
+                obj.collected = True
+        
+        elif obj.type == OBJECT_POTION:
+            heal_amount = 40
+            self.hero.heal(heal_amount)
+            self.log_message(f"🧪 Вы выпили зелье! HP: {self.hero.hp}/{self.hero.max_hp}")
+            self.update_quest_progress("potion")
+            if not obj.permanent:
+                obj.collected = True
+        
+        elif obj.type == OBJECT_CHEST:
+            gold_amount = obj.value
+            self.hero.gold += gold_amount
+            self.log_message(f"📦 Вы открыли сундук и нашли {gold_amount} золота!")
+            self.update_quest_progress("gold", amount=gold_amount)
+            if not obj.permanent:
+                obj.collected = True
+        
+        elif obj.type == OBJECT_MINE:
+            gold_amount = 50
+            self.hero.gold += gold_amount
+            self.log_message(f"⛏️ Вы добыли {gold_amount} золота из шахты!")
+            self.update_quest_progress("gold", amount=gold_amount)
+            if not obj.permanent:
+                obj.collected = True
+        
+        elif obj.type == OBJECT_TAVERN:
+            if self.hero.hp >= self.hero.max_hp:
+                self.log_message(" Вы полностью здоровы!")
+            else:
+                self.hero.hp = self.hero.max_hp
+                self.log_message("🍺 Вы отдохнули в таверне и полностью восстановили здоровье!")
+            # НЕ помечаем как collected - permanent=True
+        
+        elif obj.type == OBJECT_TEMPLE:
+            if self.hero.hp >= self.hero.max_hp:
+                self.log_message("⛪ Вы полностью здоровы!")
+            else:
+                self.hero.hp = self.hero.max_hp
+                self.log_message("⛪ Храм благословил вас! Здоровье полностью восстановлено!")
+            # НЕ помечаем как collected - permanent=True
+        
+        elif obj.type == OBJECT_RUINS:
+            if random.random() < 0.7:
+                from items import generate_random_item
+                item = generate_random_item(min_week=2)
+                success, msg = self.hero.add_to_inventory(item)
+                if success:
+                    self.log_message(f"️ В руинах вы нашли: {item.name}!")
+                else:
+                    self.log_message(f"🏛️ {msg}")
+            else:
+                gold_amount = random.randint(50, 150)
+                self.hero.gold += gold_amount
+                self.log_message(f"🏛️ Вы нашли {gold_amount} золота в руинах!")
+                self.update_quest_progress("gold", amount=gold_amount)
+            if not obj.permanent:
+                obj.collected = True
+        
+        elif obj.type == OBJECT_SHRINE:
+            buff_type = random.choice(["attack", "defense", "hp"])
+            if buff_type == "attack":
+                self.hero.attack += 2
+                self.log_message("🗿 Святилище усилило вашу атаку на 2!")
+            elif buff_type == "defense":
+                self.hero.defense += 2
+                self.log_message("🗿 Святилище усилило вашу защиту на 2!")
+            else:
+                self.hero.max_hp += 20
+                self.hero.hp += 20
+                self.log_message(" Святилище увеличило ваше здоровье на 20!")
+            if not obj.permanent:
+                obj.collected = True
+        
+        elif obj.type == OBJECT_DRAGON_LAIR:
+            self.log_message("🐉 Вы вошли в логово дракона! Будьте осторожны!")
+            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                nx, ny = self.hero.x + dx, self.hero.y + dy
+                if 0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT:
+                    if self.game_map[ny][nx] in (TERRAIN_GRASS, TERRAIN_FOREST):
+                        from enemy import Enemy
+                        dragon = Enemy(nx, ny, "dragon", spawn_week=(self.turns // TURNS_PER_WEEK) + 1)
+                        self.enemies.append(dragon)
+                        self.log_message(f"🐉 Дракон появился!")
+                        break
+            if not obj.permanent:
+                obj.collected = True
+        
+        elif obj.type == OBJECT_WATCHTOWER:
+            for dy in range(-4, 5):
+                for dx in range(-4, 5):
+                    nx, ny = self.hero.x + dx, self.hero.y + dy
+                    if 0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT:
+                        self.fog[ny][nx] = 2
+            self.log_message("🗼 Сторожевая башня открыла большую область карты!")
+            if not obj.permanent:
+                obj.collected = True
+        
+        elif obj.type == OBJECT_MERCHANT:
+            self.log_message("🏪 Торговец предлагает свои услуги! Нажмите M чтобы открыть магазин.")
+            # НЕ помечаем как collected - permanent=True
+        
+        elif obj.type == OBJECT_MAGIC_WELL:
+            self.hero.attack += 3
+            self.hero.defense += 3
+            self.log_message("⛲ Магический колодец усилил вас! +3 к атаке и защите")
+            if not obj.permanent:
+                obj.collected = True
     
+
+    def _get_item_sell_price(self, item):
+        """Рассчитывает цену продажи предмета (30% от базовой стоимости)"""
+        base_value = 0
+        
+        if item.attack > 0:
+            base_value += item.attack * 20
+        if item.defense > 0:
+            base_value += item.defense * 20
+        if item.hp > 0:
+            base_value += item.hp * 5
+        
+        # Множитель редкости
+        rarity_multipliers = {
+            "common": 1.0,
+            "rare": 2.0,
+            "epic": 3.5,
+            "legendary": 5.0
+        }
+        base_value *= rarity_multipliers.get(item.rarity, 1.0)
+        
+        return max(10, int(base_value * 0.3))  # 30% от стоимости, минимум 10
     def on_update(self, delta_time):
         """Обновление анимаций каждый кадр"""
         self.combat_animator.update()

@@ -137,6 +137,26 @@ class Enemy:
         
         self.update_stats()
 
+    def get_name(self):
+        """Возвращает имя врага"""
+        names = {
+            "wolf": "Волк",
+            "goblin": "Гоблин",
+            "skeleton": "Скелет",
+            "lich": "Лич",
+            "golem": "Голем",
+            "dragon": "Дракон",
+            "orc": "Орк",
+            "troll": "Тролль",
+            "vampire": "Вампир",
+            "demon": "Демон",
+            "bandit": "Бандит",
+            "dark_elf": "Тёмный эльф",
+            "giant": "Гигант",
+            "phoenix": "Феникс"
+        }
+        return names.get(self.type, "Враг")
+
     def update_stats(self):
         """Пересчитывает характеристики в зависимости от текущей недели"""
         # Базовое масштабирование HP и защиты
