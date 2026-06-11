@@ -22,7 +22,8 @@ from save_system import load_game, save_game
 from settings import (COLOR_FOREST, COLOR_GOLD, COLOR_GRASS,
                       COLOR_GRASS_DETAIL, COLOR_GRID, COLOR_MOUNTAIN,
                       COLOR_MOUNTAIN_PEAK, COLOR_UI_BG, COLOR_WATER,
-                      COLOR_WATER_WAVE, ENEMIES_SPAWN_PER_WEEK,
+                      COLOR_WATER_WAVE, COLOR_PATH,  # ← ДОБАВЬ
+                      ENEMIES_SPAWN_PER_WEEK,
                       ENEMY_AGGRO_RANGE, ENEMY_DRAGON_CHANCE,
                       ENEMY_DRAGON_COUNT, ENEMY_GOBLIN_CHANCE,
                       ENEMY_GOBLIN_COUNT, ENEMY_GOLEM_CHANCE,
@@ -34,7 +35,8 @@ from settings import (COLOR_FOREST, COLOR_GOLD, COLOR_GRASS,
                       MAX_DEFENSE, MAX_HP, POTION_SPAWN_PER_WEEK,
                       SCREEN_HEIGHT, SCREEN_TITLE, SCREEN_WIDTH,
                       TERRAIN_FOREST, TERRAIN_GRASS, TERRAIN_MOUNTAIN,
-                      TERRAIN_WATER, TILE_SIZE, TURNS_PER_DAY, TURNS_PER_WEEK,
+                      TERRAIN_WATER, TERRAIN_PATH,  # ← ДОБАВЬ
+                      TILE_SIZE, TURNS_PER_DAY, TURNS_PER_WEEK,
                       UPGRADE_AMOUNT, UPGRADE_ATTACK_COST,
                       UPGRADE_DEFENSE_COST, UPGRADE_HP_COST, WEEKS_TO_WIN,
                       XP_PER_KILL)
@@ -126,6 +128,8 @@ class HeroesGame(arcade.Window):
         self.total_gold_collected = 0
         self.total_potions_collected = 0
         self.enemies_killed_by_type = {}
+        self.terrain_textures = {}  # Кэш текстур местности
+        self._load_terrain_textures()
 
         self.items_on_map = []
         
@@ -684,12 +688,56 @@ class HeroesGame(arcade.Window):
                                 enemy.y = new_y
     
     def draw_terrain_tile(self, x, y, terrain_type, screen_x, screen_y):
+        """Рисует клетку местности с текстурами"""
+        # Определяем какую текстуру использовать (псевдослучайно по координатам)
+        texture_list = None
+        
+        if terrain_type == TERRAIN_GRASS:
+            texture_list = self.terrain_textures.get('grass', [])
+        elif terrain_type == TERRAIN_FOREST:
+            texture_list = self.terrain_textures.get('forest', [])
+        elif terrain_type == TERRAIN_WATER:
+            texture_list = self.terrain_textures.get('water', [])
+        elif terrain_type == TERRAIN_MOUNTAIN:
+            texture_list = self.terrain_textures.get('mountain', [])
+        elif terrain_type == TERRAIN_PATH:
+            texture_list = self.terrain_textures.get('path', [])
+        
+        # Рисуем текстуру если есть
+        if texture_list:
+            # Выбираем текстуру на основе координат (для разнообразия)
+            index = (x * 7 + y * 13) % len(texture_list)
+            texture = texture_list[index]
+            
+            center_x = screen_x + TILE_SIZE // 2
+            center_y = screen_y + TILE_SIZE // 2
+            rect = arcade.XYWH(center_x, center_y, TILE_SIZE, TILE_SIZE)
+            arcade.draw_texture_rect(texture, rect)
+        else:
+            # Fallback на цветные квадраты (если нет текстур)
+            self._draw_fallback_tile(x, y, terrain_type, screen_x, screen_y)
+    
+    def _draw_fallback_tile(self, x, y, terrain_type, screen_x, screen_y):
+        """Рисует клетку без текстур (процедурно)"""
         if terrain_type == TERRAIN_GRASS:
             arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, COLOR_GRASS)
-            if (x + y * 3) % 4 == 0:
-                arcade.draw_circle_filled(screen_x + 16, screen_y + 16, 3, COLOR_GRASS_DETAIL)
-            if (x * 2 + y) % 5 == 0:
-                arcade.draw_circle_filled(screen_x + 48, screen_y + 40, 4, COLOR_GRASS_DETAIL)
+            # Травинки
+            seed = x * 1000 + y
+            random.seed(seed)
+            for _ in range(3):
+                gx = screen_x + random.randint(5, 59)
+                gy = screen_y + random.randint(5, 59)
+                arcade.draw_line(gx, gy, gx + random.randint(-2, 2), gy + random.randint(4, 8), (50, 150, 50), 2)
+            random.seed()
+        elif terrain_type == TERRAIN_PATH:
+            arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, (180, 160, 120))
+            seed = x * 1000 + y
+            random.seed(seed)
+            for _ in range(2):
+                sx = screen_x + random.randint(10, 54)
+                sy = screen_y + random.randint(10, 54)
+                arcade.draw_circle_filled(sx, sy, random.randint(2, 4), (160, 140, 100))
+            random.seed()
         elif terrain_type == TERRAIN_MOUNTAIN:
             arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, COLOR_MOUNTAIN)
             points = [(screen_x + TILE_SIZE//2, screen_y + TILE_SIZE - 10),
@@ -699,7 +747,39 @@ class HeroesGame(arcade.Window):
         elif terrain_type == TERRAIN_WATER:
             arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, COLOR_WATER)
             arcade.draw_arc_outline(screen_x + 16, screen_y + 20, 20, 10, COLOR_WATER_WAVE, 0, 180, 2)
-            arcade.draw_arc_outline(screen_x + 48, screen_y + 40, 20, 10, COLOR_WATER_WAVE, 0, 180, 2)
+        elif terrain_type == TERRAIN_FOREST:
+            arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, COLOR_FOREST)
+    
+    def _draw_fallback_tile(self, x, y, terrain_type, screen_x, screen_y):
+        """Рисует клетку без текстур (процедурно)"""
+        if terrain_type == TERRAIN_GRASS:
+            arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, COLOR_GRASS)
+            # Травинки
+            seed = x * 1000 + y
+            random.seed(seed)
+            for _ in range(3):
+                gx = screen_x + random.randint(5, 59)
+                gy = screen_y + random.randint(5, 59)
+                arcade.draw_line(gx, gy, gx + random.randint(-2, 2), gy + random.randint(4, 8), (50, 150, 50), 2)
+            random.seed()
+        elif terrain_type == TERRAIN_PATH:
+            arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, (180, 160, 120))
+            seed = x * 1000 + y
+            random.seed(seed)
+            for _ in range(2):
+                sx = screen_x + random.randint(10, 54)
+                sy = screen_y + random.randint(10, 54)
+                arcade.draw_circle_filled(sx, sy, random.randint(2, 4), (160, 140, 100))
+            random.seed()
+        elif terrain_type == TERRAIN_MOUNTAIN:
+            arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, COLOR_MOUNTAIN)
+            points = [(screen_x + TILE_SIZE//2, screen_y + TILE_SIZE - 10),
+                      (screen_x + 10, screen_y + 20),
+                      (screen_x + TILE_SIZE - 10, screen_y + 20)]
+            arcade.draw_polygon_filled(points, COLOR_MOUNTAIN_PEAK)
+        elif terrain_type == TERRAIN_WATER:
+            arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, COLOR_WATER)
+            arcade.draw_arc_outline(screen_x + 16, screen_y + 20, 20, 10, COLOR_WATER_WAVE, 0, 180, 2)
         elif terrain_type == TERRAIN_FOREST:
             arcade.draw_lbwh_rectangle_filled(screen_x, screen_y, TILE_SIZE, TILE_SIZE, COLOR_FOREST)
     
@@ -1392,6 +1472,31 @@ class HeroesGame(arcade.Window):
         base_value *= rarity_multipliers.get(item.rarity, 1.0)
         
         return max(10, int(base_value * 0.3))  # 30% от стоимости, минимум 10
+    
+
+
+    def _load_terrain_textures(self):
+        """Загружает текстуры местности в кэш"""
+        texture_files = {
+            'grass': ['grass1.png', 'grass2.png', 'grass3.png'],
+            'forest': ['forest1.png', 'forest2.png'],
+            'water': ['water1.png', 'water2.png'],
+            'mountain': ['mountain1.png'],
+            'path': ['path1.png', 'path2.png']
+        }
+        
+        for terrain_type, files in texture_files.items():
+            self.terrain_textures[terrain_type] = []
+            for filename in files:
+                path = f"images/terrain/{filename}"
+                try:
+                    texture = arcade.load_texture(path)
+                    self.terrain_textures[terrain_type].append(texture)
+                except:
+                    pass  # Если текстуры нет — используем fallback
+        
+        print(f"🎨 Загружено текстур: {sum(len(v) for v in self.terrain_textures.values())}")
+
     def on_update(self, delta_time):
         """Обновление анимаций каждый кадр"""
         self.combat_animator.update()

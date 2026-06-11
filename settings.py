@@ -113,3 +113,7 @@ OBJECT_DRAGON_LAIR = 9    # Логово дракона
 OBJECT_WATCHTOWER = 10    # Сторожевая башня
 OBJECT_MERCHANT = 11      # Торговец
 OBJECT_MAGIC_WELL = 12    # Магический колодец
+
+
+TERRAIN_PATH = 5
+COLOR_PATH = (180, 160, 120)
