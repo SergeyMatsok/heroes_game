@@ -83,6 +83,8 @@ class HeroesGame(arcade.Window):
         self.hovered_item = None
         self.hovered_enemy = None
         self.hovered_hero = False
+        self.hovered_inventory_item = None
+        self.hovered_equipment_item = None
         arcade.set_background_color((10, 10, 15))
 
 
@@ -149,14 +151,57 @@ class HeroesGame(arcade.Window):
         tooltip_lines = []
         title_color = arcade.color.WHITE
         
+        # Подсказка для предмета в инвентаре
+        if self.hovered_inventory_item:
+            item = self.hovered_inventory_item
+            tooltip_lines = [f"🎁 {item.name}"]
+            
+            if item.attack > 0:
+                tooltip_lines.append(f"⚔️ Атака: +{item.attack}")
+            if item.defense > 0:
+                tooltip_lines.append(f"️ Защита: +{item.defense}")
+            if item.hp > 0:
+                tooltip_lines.append(f"❤️ Здоровье: +{item.hp}")
+            
+            rarity_names = {"common": "Обычный", "rare": "Редкий", "epic": "Эпический", "legendary": "Легендарный"}
+            tooltip_lines.append(f"📊 {rarity_names.get(item.rarity, item.rarity)}")
+            
+            # Цена продажи
+            sell_price = self._get_item_sell_price(item)
+            tooltip_lines.append(f"💰 Продажа: {sell_price} золота")
+            
+            if self.is_near_merchant():
+                tooltip_lines.append(f"🖱️ ПКМ - продать")
+            else:
+                tooltip_lines.append(f"️ Найдите магазин для продажи")
+            
+            title_color = (255, 215, 0)
+        
+        # Подсказка для экипированного предмета
+        elif self.hovered_equipment_item:
+            item = self.hovered_equipment_item
+            tooltip_lines = [f"️ {item.name} (экипировано)"]
+            
+            if item.attack > 0:
+                tooltip_lines.append(f"⚔️ Атака: +{item.attack}")
+            if item.defense > 0:
+                tooltip_lines.append(f"🛡️ Защита: +{item.defense}")
+            if item.hp > 0:
+                tooltip_lines.append(f"❤️ Здоровье: +{item.hp}")
+            
+            rarity_names = {"common": "Обычный", "rare": "Редкий", "epic": "Эпический", "legendary": "Легендарный"}
+            tooltip_lines.append(f"📊 {rarity_names.get(item.rarity, item.rarity)}")
+            
+            title_color = (100, 255, 100)
+        
         # Подсказка для героя
-        if self.hovered_hero:
+        elif self.hovered_hero:
             tooltip_lines = [
                 f"👤 Герой (Ур. {self.hero.level})",
                 f"❤️ HP: {self.hero.hp}/{self.hero.max_hp}",
                 f"⚔️ Атака: {self.hero.attack}",
                 f"🛡️ Защита: {self.hero.defense}",
-                f"💰 Золото: {self.hero.gold}",
+                f" Золото: {self.hero.gold}",
                 f"⭐ Опыт: {self.hero.xp}"
             ]
             title_color = arcade.color.GREEN
@@ -174,20 +219,17 @@ class HeroesGame(arcade.Window):
             if obj.type == OBJECT_GOLD:
                 tooltip_lines.append(f"💰 {GOLD_PER_PILE} золота")
             elif obj.type == OBJECT_POTION:
-                tooltip_lines.append(f"🧪 Восстанавливает 40 HP")
+                tooltip_lines.append(f" Восстанавливает 40 HP")
             elif obj.type == OBJECT_CHEST:
                 tooltip_lines.append(f"📦 {obj.value} золота")
             elif obj.type == OBJECT_TAVERN:
                 tooltip_lines.append(f"🍺 Полное восстановление HP")
-                tooltip_lines.append(f"💵 Бесплатно")
             elif obj.type == OBJECT_TEMPLE:
                 tooltip_lines.append(f"⛪ Полное восстановление HP")
-                tooltip_lines.append(f"💵 Бесплатно")
             elif obj.type == OBJECT_MERCHANT:
                 tooltip_lines.append(f"🏪 Нажмите M рядом чтобы открыть")
-                tooltip_lines.append(f"📦 Покупка улучшений")
             elif obj.type == OBJECT_MINE:
-                tooltip_lines.append(f"⛏️ 50 золота")
+                tooltip_lines.append(f"️ 50 золота")
             elif obj.type == OBJECT_RUINS:
                 tooltip_lines.append(f"🏛️ Шанс найти предмет или золото")
             elif obj.type == OBJECT_SHRINE:
@@ -201,7 +243,7 @@ class HeroesGame(arcade.Window):
             
             title_color = arcade.color.YELLOW
         
-        # Подсказка для предмета
+        # Подсказка для предмета на карте
         elif self.hovered_item:
             item = self.hovered_item
             rarity_colors = {
@@ -222,7 +264,7 @@ class HeroesGame(arcade.Window):
                 tooltip_lines.append(f"❤️ Здоровье: +{item.hp}")
             
             rarity_names = {"common": "Обычный", "rare": "Редкий", "epic": "Эпический", "legendary": "Легендарный"}
-            tooltip_lines.append(f"📊 {rarity_names.get(item.rarity, item.rarity)}")
+            tooltip_lines.append(f" {rarity_names.get(item.rarity, item.rarity)}")
         
         # Подсказка для врага
         elif self.hovered_enemy:
@@ -240,7 +282,7 @@ class HeroesGame(arcade.Window):
                 f"👹 {enemy_name}{enemy.title}",
                 f"❤️ HP: {enemy.hp}/{enemy.max_hp}",
                 f"⚔️ Атака: {enemy.attack}",
-                f"🛡️ Защита: {enemy.defense}",
+                f"️ Защита: {enemy.defense}",
                 f"📅 Неделя спавна: {enemy.spawn_week}"
             ]
             title_color = arcade.color.RED
@@ -248,7 +290,8 @@ class HeroesGame(arcade.Window):
         # Рисуем подсказку если есть
         if tooltip_lines:
             self._render_tooltip(self.mouse_x, self.mouse_y, tooltip_lines, title_color)
-    
+
+
     def _render_tooltip(self, x, y, lines, title_color):
         """Рисует подсказку рядом с курсором"""
         if not lines:
@@ -314,6 +357,18 @@ class HeroesGame(arcade.Window):
             )
             text_y -= line_height
 
+    def is_near_merchant(self):
+        """Проверяет есть ли магазин рядом с героем"""
+        if not hasattr(self, 'map_objects'):
+            return False
+        
+        for obj in self.map_objects:
+            if obj.type == OBJECT_MERCHANT and obj.permanent:
+                dist = abs(obj.x - self.hero.x) + abs(obj.y - self.hero.y)
+                if dist <= 2:  # В радиусе 2 клеток
+                    return True
+        return False
+
     def on_mouse_motion(self, x, y, dx, dy):
         """Отслеживание наведения мыши на объекты"""
         self.mouse_x = x
@@ -324,13 +379,18 @@ class HeroesGame(arcade.Window):
         self.hovered_item = None
         self.hovered_enemy = None
         self.hovered_hero = False
+        self.hovered_inventory_item = None
+        self.hovered_equipment_item = None
         
-        # ВАЖНО: учитываем смещение viewport (CONSOLE_WIDTH и UI_HEIGHT)
-        # Координаты мыши в системе координат viewport:
+        # Если открыт инвентарь — проверяем наведение на слоты
+        if self.show_inventory:
+            self._check_inventory_hover(x, y)
+            return
+        
+        # ВАЖНО: учитываем смещение viewport
         mouse_in_viewport_x = x - CONSOLE_WIDTH
         mouse_in_viewport_y = y - UI_HEIGHT
         
-        # Проверяем только если мышь в игровой зоне
         if mouse_in_viewport_x < 0 or mouse_in_viewport_x > self.game_width:
             return
         if mouse_in_viewport_y < 0 or mouse_in_viewport_y > self.game_height:
@@ -349,13 +409,10 @@ class HeroesGame(arcade.Window):
             for obj in self.map_objects:
                 if obj.collected and not obj.permanent:
                     continue
-                
                 if self.fog[obj.y][obj.x] != 2:
                     continue
-                
                 screen_x = obj.x * TILE_SIZE - self.camera_x
                 screen_y = obj.y * TILE_SIZE - self.camera_y
-                
                 if (screen_x <= mouse_in_viewport_x <= screen_x + TILE_SIZE and
                     screen_y <= mouse_in_viewport_y <= screen_y + TILE_SIZE):
                     self.hovered_object = obj
@@ -366,7 +423,6 @@ class HeroesGame(arcade.Window):
             for item in self.items_on_map:
                 screen_x = item.x * TILE_SIZE - self.camera_x
                 screen_y = item.y * TILE_SIZE - self.camera_y
-                
                 if (screen_x <= mouse_in_viewport_x <= screen_x + TILE_SIZE and
                     screen_y <= mouse_in_viewport_y <= screen_y + TILE_SIZE):
                     self.hovered_item = item
@@ -376,13 +432,66 @@ class HeroesGame(arcade.Window):
         for enemy in self.enemies:
             if self.fog[enemy.y][enemy.x] != 2:
                 continue
-            
             screen_x = enemy.x * TILE_SIZE - self.camera_x
             screen_y = enemy.y * TILE_SIZE - self.camera_y
-            
             if (screen_x <= mouse_in_viewport_x <= screen_x + TILE_SIZE and
                 screen_y <= mouse_in_viewport_y <= screen_y + TILE_SIZE):
                 self.hovered_enemy = enemy
+                return
+    
+    def _check_inventory_hover(self, x, y):
+        """Проверяет наведение мыши на слоты инвентаря"""
+        from inventory_ui import SLOT_SIZE, SLOT_PADDING
+        
+        panel_width = 900
+        panel_height = 600
+        cx = self.width / 2
+        cy = self.height / 2
+        
+        panel_left = cx - panel_width / 2
+        panel_top = cy + panel_height / 2
+        
+        # === Проверяем слоты экипировки (левая часть) ===
+        left_x = panel_left + 50
+        
+        # Слот оружия
+        slot_y = panel_top - 180
+        if self._check_slot_click(x, y, left_x, slot_y, SLOT_SIZE):
+            if self.hero.equipped_weapon:
+                self.hovered_equipment_item = self.hero.equipped_weapon
+            return
+        
+        # Слот брони
+        slot_y -= 130
+        if self._check_slot_click(x, y, left_x, slot_y, SLOT_SIZE):
+            if self.hero.equipped_armor:
+                self.hovered_equipment_item = self.hero.equipped_armor
+            return
+        
+        # Слот аксессуара
+        slot_y -= 130
+        if self._check_slot_click(x, y, left_x, slot_y, SLOT_SIZE):
+            if self.hero.equipped_accessory:
+                self.hovered_equipment_item = self.hero.equipped_accessory
+            return
+        
+        # === Проверяем слоты инвентаря (правая часть) ===
+        right_x = cx + 150
+        inventory_y = panel_top - 100
+        slots_per_row = 5
+        start_x = right_x
+        start_y = inventory_y - 80
+        
+        for i, item in enumerate(self.hero.inventory):
+            row = i // slots_per_row
+            col = i % slots_per_row
+            
+            slot_x = start_x + col * (SLOT_SIZE + SLOT_PADDING)
+            slot_y = start_y - row * (SLOT_SIZE + SLOT_PADDING)
+            
+            if (slot_x - SLOT_SIZE//2 <= x <= slot_x + SLOT_SIZE//2 and
+                slot_y - SLOT_SIZE//2 <= y <= slot_y + SLOT_SIZE//2):
+                self.hovered_inventory_item = item
                 return
             
 
@@ -1023,6 +1132,51 @@ class HeroesGame(arcade.Window):
 
     def on_mouse_press(self, x, y, button, modifiers):
         """Обработка клика мыши"""
+        
+        # ПРАВЫЙ КЛИК - продажа предмета в инвентаре
+        if button == arcade.MOUSE_BUTTON_RIGHT and self.show_inventory:
+            # Проверяем есть ли магазин рядом
+            if not self.is_near_merchant():
+                self.log_message("❌ Рядом нет магазина! Найдите здание торговца для продажи.")
+                return
+            
+            from inventory_ui import SLOT_SIZE, SLOT_PADDING
+            
+            panel_width = 900
+            panel_height = 600
+            cx = self.width / 2
+            cy = self.height / 2
+            
+            panel_left = cx - panel_width / 2
+            panel_top = cy + panel_height / 2
+            
+            # Проверяем слоты инвентаря (правая часть)
+            right_x = cx + 150
+            inventory_y = panel_top - 100
+            slots_per_row = 5
+            start_x = right_x
+            start_y = inventory_y - 80
+            
+            for i, item in enumerate(self.hero.inventory):
+                row = i // slots_per_row
+                col = i % slots_per_row
+                
+                slot_x = start_x + col * (SLOT_SIZE + SLOT_PADDING)
+                slot_y = start_y - row * (SLOT_SIZE + SLOT_PADDING)
+                
+                if (slot_x - SLOT_SIZE//2 <= x <= slot_x + SLOT_SIZE//2 and
+                    slot_y - SLOT_SIZE//2 <= y <= slot_y + SLOT_SIZE//2):
+                    
+                    # Продаём предмет
+                    sell_price = self._get_item_sell_price(item)
+                    self.hero.gold += sell_price
+                    self.hero.inventory.pop(i)
+                    self.log_message(f"💰 Продано: {item.name} за {sell_price} золота")
+                    return
+            
+            return
+        
+       
         if not self.show_inventory:
             return
         

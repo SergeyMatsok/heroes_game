@@ -1,7 +1,7 @@
 import random
 import os
 import arcade
-from settings import TERRAIN_GRASS, TERRAIN_FOREST, MAP_WIDTH, MAP_HEIGHT
+from settings import TERRAIN_GRASS, TERRAIN_FOREST, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE
 
 # Типы объектов
 OBJECT_NONE = 0
@@ -94,24 +94,33 @@ class MapObject:
     def draw(self, screen_x, screen_y):
         """Рисует объект на экране"""
         if self.texture:
-            # Рисуем текстуру
-            sprite = arcade.Sprite(self.texture)
-            sprite.scale = 0.8
-            sprite.center_x = screen_x + 32
-            sprite.center_y = screen_y + 32
-            sprite.draw()
+            # Размер объекта — почти вся клетка (клетка 64x64)
+            MAX_SIZE = 56
+            
+            # Вычисляем масштаб
+            scale = min(MAX_SIZE / self.texture.width, MAX_SIZE / self.texture.height)
+            
+            width = int(self.texture.width * scale)
+            height = int(self.texture.height * scale)
+            
+            # Центр клетки — XYWH использует именно центр!
+            center_x = screen_x + TILE_SIZE // 2
+            center_y = screen_y + TILE_SIZE // 2
+            
+            # XYWH = (center_x, center_y, width, height)
+            rect = arcade.XYWH(center_x, center_y, width, height)
+            arcade.draw_texture_rect(self.texture, rect)
         else:
             # Fallback на эмодзи
             arcade.draw_text(
                 self.get_icon(),
-                screen_x + 32,
-                screen_y + 32,
+                screen_x + TILE_SIZE // 2,
+                screen_y + TILE_SIZE // 2,
                 arcade.color.WHITE,
-                32,
+                28,
                 anchor_x="center",
                 anchor_y="center"
             )
-
 
 def generate_map_objects(game_map, hero_x, hero_y):
     """Генерирует все объекты на карте"""

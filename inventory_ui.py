@@ -249,14 +249,17 @@ def draw_inventory(game):
         draw_inventory_slot(x, y, item, i)
     
     # Подсказки
+    if game.is_near_merchant():
+        hint_text = "ЛКМ - экипировать | ПКМ - продать | ESC - закрыть"
+    else:
+        hint_text = "ЛКМ - экипировать | Найдите магазин для продажи | ESC - закрыть"
+    
     arcade.draw_text(
-        "Кликни на предмет чтобы экипировать | ESC - закрыть",
+        hint_text,
         cx, panel_bottom + 40,
         (150, 150, 150), 12,
         anchor_x="center", font_name="Arial"
     )
-
-    
 
 
 def draw_equipment_slot(x, y, item, item_type, slot_name):
