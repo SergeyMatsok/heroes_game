@@ -583,7 +583,7 @@ class HeroesGame(arcade.Window):
             for attempt in range(200):
                 x = random.randint(0, MAP_WIDTH - 1)
                 y = random.randint(0, MAP_HEIGHT - 1)
-                if (self.game_map[y][x] in (TERRAIN_GRASS, TERRAIN_FOREST) and
+                if (self.game_map[y][x] in (TERRAIN_GRASS, TERRAIN_FOREST, TERRAIN_PATH) and  # ← ДОБАВЬ
                     (x, y) != (self.hero.x, self.hero.y) and
                     not any(e.x == x and e.y == y for e in self.enemies)):
                     roll = random.random()
@@ -681,7 +681,7 @@ class HeroesGame(arcade.Window):
                             self.game_over = True
                             self.victory = False
                     else:
-                        if self.game_map[new_y][new_x] in (TERRAIN_GRASS, TERRAIN_FOREST):
+                        if self.game_map[new_y][new_x] in (TERRAIN_GRASS, TERRAIN_FOREST, TERRAIN_PATH):
                             is_blocked = any(e.x == new_x and e.y == new_y for e in self.enemies if e != enemy)
                             if not is_blocked:
                                 enemy.x = new_x
@@ -1052,7 +1052,7 @@ class HeroesGame(arcade.Window):
         
         action_taken = False
         
-        if self.game_map[new_y][new_x] in (TERRAIN_GRASS, TERRAIN_FOREST):
+        if self.game_map[new_y][new_x] in (TERRAIN_GRASS, TERRAIN_FOREST, TERRAIN_PATH):
             enemy_on_cell = next((e for e in self.enemies if e.x == new_x and e.y == new_y), None)
             if enemy_on_cell:
                 self.combat(enemy_on_cell)
@@ -1420,7 +1420,7 @@ class HeroesGame(arcade.Window):
             for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                 nx, ny = self.hero.x + dx, self.hero.y + dy
                 if 0 <= nx < MAP_WIDTH and 0 <= ny < MAP_HEIGHT:
-                    if self.game_map[ny][nx] in (TERRAIN_GRASS, TERRAIN_FOREST):
+                    if self.game_map[ny][nx] in (TERRAIN_GRASS, TERRAIN_FOREST, TERRAIN_PATH):  # ← ДОБАВЬ
                         from enemy import Enemy
                         dragon = Enemy(nx, ny, "dragon", spawn_week=(self.turns // TURNS_PER_WEEK) + 1)
                         self.enemies.append(dragon)

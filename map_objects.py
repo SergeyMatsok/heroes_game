@@ -1,7 +1,7 @@
 import random
 import os
 import arcade
-from settings import TERRAIN_GRASS, TERRAIN_FOREST, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE
+from settings import TERRAIN_GRASS, TERRAIN_FOREST, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, TERRAIN_PATH
 
 # Типы объектов
 OBJECT_NONE = 0
@@ -208,7 +208,7 @@ def get_random_position(game_map, hero_x, hero_y, objects, max_attempts=100):
         y = random.randint(0, MAP_HEIGHT - 1)
         
         # Проверяем что это проходимая местность
-        if game_map[y][x] not in (TERRAIN_GRASS, TERRAIN_FOREST):
+        if game_map[y][x] not in (TERRAIN_GRASS, TERRAIN_FOREST, TERRAIN_PATH):  # ← ДОБАВЬ
             continue
         
         # Не слишком близко к герою
